@@ -1,84 +1,108 @@
 <div align="center">
   <img src="assets/forensichunter_logo.png" alt="ForensicHunter Logo" width="200">
   <h1>ForensicHunter</h1>
-  <p>L'outil de forensic Windows ultime pour les professionnels de la cybersécurité</p>
+  <p>L'outil de forensic Windows open source de référence</p>
   
   <p>
-    <a href="#fonctionnalités"><img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
-    <a href="#prérequis"><img src="https://img.shields.io/badge/python-3.7+-red.svg" alt="Python"></a>
-    <a href="docs/security_audit.md"><img src="https://img.shields.io/badge/security-audited-success.svg" alt="Security"></a>
-    <a href="#compatibilité"><img src="https://img.shields.io/badge/windows-all_versions-lightgrey.svg" alt="Windows"></a>
+    <a href="#fonctionnalités"><img src="https://img.shields.io/badge/Preuves-Intégrité_Garantie-blue" alt="Intégrité des preuves"></a>
+    <a href="#installation"><img src="https://img.shields.io/badge/Version-1.0.0-brightgreen" alt="Version"></a>
+    <a href="#licence"><img src="https://img.shields.io/badge/Licence-MIT-yellow" alt="Licence"></a>
+    <a href="#compatibilité"><img src="https://img.shields.io/badge/Windows-XP--11-blue" alt="Compatibilité Windows"></a>
+    <a href="#compatibilité"><img src="https://img.shields.io/badge/Windows_Server-2003--2022-blue" alt="Compatibilité Windows Server"></a>
+    <a href="#sécurité"><img src="https://img.shields.io/badge/DevSecOps-Validé-red" alt="DevSecOps"></a>
+    <a href="#multiplateforme"><img src="https://img.shields.io/badge/Multiplateforme-Windows|Linux|macOS-orange" alt="Multiplateforme"></a>
+    <a href="#documentation"><img src="https://img.shields.io/badge/Documentation-Complète-lightgrey" alt="Documentation"></a>
   </p>
 </div>
 
-## 🔍 Vue d'ensemble
+## 🔍 Présentation
 
-**ForensicHunter** est un outil professionnel de forensic pour Windows, conçu pour collecter l'intégralité des preuves numériques sur un système Windows, tout en garantissant leur intégrité et leur recevabilité en justice. Développé selon les principes DevSecOps, il surpasse les outils existants comme Velociraptor, KAPE ou FTK Imager en termes de complétude, de rapidité et d'intelligence.
+**ForensicHunter** est un outil professionnel de forensic pour Windows qui permet de collecter l'intégralité des preuves numériques sur un système, tout en garantissant leur intégrité pour une recevabilité en justice. Conçu avec une approche DevSecOps, il surpasse les outils existants comme Velociraptor, KAPE ou FTK Imager en termes de complétude, de rapidité et d'intelligence.
 
-### 🛡️ Approche DevSecOps
-
-ForensicHunter a été développé avec une approche "security by design", intégrant la sécurité à chaque étape du développement. Un [audit de sécurité complet](docs/security_audit.md) a été réalisé pour garantir la robustesse et la fiabilité de l'outil.
+ForensicHunter offre une architecture modulaire permettant l'ajout de nouveaux modules via un système de plugins, et produit des rapports exploitables automatiquement dans différents formats (HTML, JSON, CSV).
 
 ## ✨ Fonctionnalités
 
-### 📊 Collecte complète de preuves
+### Collecte complète de preuves numériques
 
-- **Journaux d'événements Windows** - Extraction et analyse de tous les journaux d'événements système, sécurité, application
-- **Fichiers de registre** - Capture et analyse des ruches de registre (SYSTEM, SOFTWARE, SECURITY, SAM, etc.)
-- **Fichiers temporaires et artefacts** - Collecte des fichiers temporaires, prefetch, et autres artefacts système
-- **Historique des navigateurs** - Extraction des données de navigation (Edge, Chrome, Firefox)
-- **Processus et connexions** - Capture des processus en cours et des connexions réseau actives
+- **Journaux d'événements (Event Logs)** - Collecte et analyse de tous les journaux d'événements Windows
+- **Fichiers de registre (Registry hives)** - Extraction et analyse des ruches de registre
+- **Fichiers temporaires et artefacts d'usage** - Identification et collecte des fichiers temporaires et artefacts système
+- **Historique des navigateurs** - Analyse de l'historique Edge, Chrome et Firefox
+- **Processus et connexions réseau** - Capture des processus en cours et des connexions réseau actives
 - **Périphériques USB** - Détection et analyse des périphériques USB connectés
-- **Capture mémoire** - Dump de la mémoire RAM (lorsque possible)
-- **Données utilisateur** - Collecte des fichiers récents, téléchargements et documents
+- **Capture mémoire (RAM dump)** - Acquisition de la mémoire vive pour analyse
+- **Données utilisateur** - Collecte des fichiers récents, téléchargements et autres données utilisateur
 
-### 🔒 Intégrité des preuves
+### Intégrité des preuves garantie
 
-- **Mode lecture seule** - Toutes les opérations sont effectuées en mode strictement lecture seule
-- **Calcul de hashes** - Génération automatique de hashes MD5, SHA-1 et SHA-256 pour chaque artefact
-- **Chaîne de custody** - Documentation complète de la chaîne de custody pour chaque preuve
-- **Journal d'audit** - Journalisation détaillée de toutes les opérations effectuées
+- **Calcul de hashes** - MD5, SHA-1, SHA-256 pour chaque artefact collecté
+- **Chaîne de custody documentée** - Traçabilité complète de la collecte à l'analyse
+- **Mode lecture seule** - Aucune modification des preuves originales
+- **Journal d'audit détaillé** - Enregistrement de toutes les opérations effectuées
+- **Intégration blockchain** - Stockage immuable des hashes de preuves pour garantir l'intégrité
 
-### 🧠 Analyse intelligente
+### Analyse avancée
 
 - **Détection d'anomalies** - Identification automatique des comportements suspects
-- **Scoring de preuves** - Attribution de scores de pertinence aux artefacts collectés
-- **Analyse mémoire avancée** - Intégration avec Volatility pour une analyse mémoire approfondie
-- **Détection de rootkits** - Identification des malwares furtifs et rootkits
+- **Scoring de preuves** - Évaluation de la pertinence des preuves collectées
+- **Intelligence artificielle** - Analyse automatisée et reconstruction d'incidents
+- **Corrélation d'événements** - Mise en relation des différents artefacts
+- **Analyse comportementale** - Détection de comportements malveillants
+- **Intégration SIEM** - Connexion avec les principaux SIEM du marché
 
-### 📝 Rapports professionnels
+### Rapports professionnels
 
 - **Rapports HTML interactifs** - Visualisation claire et interactive des résultats
-- **Export JSON/CSV** - Données structurées pour une analyse ultérieure
-- **Visualisation avancée** - Graphes de relations, timelines et tableaux de bord
-- **Rapports juridiques** - Documentation conforme aux exigences légales
+- **Exportation JSON/CSV** - Données structurées pour analyse ultérieure
+- **Visualisations avancées** - Graphiques, chronologies et cartographies
+- **Rapports juridiques** - Formats adaptés aux procédures judiciaires
 
-### 🔌 Architecture modulaire
+## 🖥️ Interface
 
-- **Système de plugins** - Extension facile avec de nouveaux modules
-- **API documentée** - Intégration avec d'autres outils et workflows
-- **Configuration flexible** - Adaptation aux besoins spécifiques de chaque investigation
+ForensicHunter propose deux interfaces :
 
-## 🖥️ Compatibilité
+- **Interface CLI professionnelle** - Pour une utilisation en ligne de commande
+- **Interface graphique (GUI)** - Pour une utilisation simplifiée et visuelle
 
-ForensicHunter est compatible avec **toutes les versions de Windows**, des plus anciennes aux plus récentes :
+<div align="center">
+  <img src="assets/report_example.png" alt="Exemple de rapport ForensicHunter" width="600">
+</div>
 
-- Windows XP, Vista, 7, 8, 8.1, 10, 11
-- Windows Server 2003, 2008, 2012, 2016, 2019, 2022
+## 📋 Compatibilité
 
-Le système détecte automatiquement la version et adapte ses méthodes de collecte en conséquence.
+ForensicHunter est compatible avec :
 
-## 📋 Prérequis
+- **Windows** : XP, Vista, 7, 8, 8.1, 10, 11
+- **Windows Server** : 2003, 2008, 2012, 2016, 2019, 2022
+- **Multiplateforme** : Modules d'analyse disponibles pour Linux et macOS
 
-- Python 3.7 ou supérieur
-- Privilèges administrateur sur le système cible
-- 4 Go de RAM minimum (8 Go recommandés)
-- Espace disque suffisant pour stocker les preuves collectées
+## 🔒 Sécurité (DevSecOps)
+
+ForensicHunter a été développé selon les principes DevSecOps :
+
+- **Validation stricte des entrées** - Protection contre les injections
+- **Gestion sécurisée des privilèges** - Principe du moindre privilège
+- **Chiffrement des données sensibles** - Protection des informations confidentielles
+- **Protection contre les élévations de privilèges** - Contrôle strict des permissions
+- **Vérification d'intégrité** - Contrôle de l'intégrité du code et des binaires
+- **Sandboxing** - Isolation des opérations à risque
+
+Un audit de sécurité complet a été réalisé et est disponible dans `docs/security_audit.md`.
 
 ## 🚀 Installation
 
+### Prérequis
+
+- Windows 7 ou supérieur (Windows 10/11 recommandé)
+- Python 3.8 ou supérieur
+- 4 Go de RAM minimum (8 Go recommandés)
+- 1 Go d'espace disque disponible
+
 ### Installation automatique
+
+1. Téléchargez la dernière version de ForensicHunter
+2. Exécutez le script d'installation :
 
 ```batch
 install.bat
@@ -86,19 +110,20 @@ install.bat
 
 ### Installation manuelle
 
+1. Clonez le dépôt :
+
 ```bash
-# Cloner le dépôt
 git clone https://github.com/servais1983/ForensicHunter.git
-cd ForensicHunter
-
-# Installer les dépendances
-pip install -r requirements.txt
-
-# Vérifier l'installation
-python src/forensichunter.py --check
 ```
 
-## 📖 Utilisation
+2. Installez les dépendances :
+
+```bash
+cd ForensicHunter
+pip install -r requirements.txt
+```
+
+## 🔧 Utilisation
 
 ### Collecte complète
 
@@ -109,150 +134,122 @@ python src/forensichunter.py --full-scan --output C:\ForensicHunter\Results
 ### Collecte ciblée
 
 ```bash
-python src/forensichunter.py --collect registry browser_history processes --output C:\ForensicHunter\Results
+python src/forensichunter.py --collect event_logs registry browser_history --output C:\ForensicHunter\Results
 ```
 
-### Analyse mémoire
+### Interface graphique
 
 ```bash
-python src/forensichunter.py --memory-dump --volatility --output C:\ForensicHunter\Results
+python src/gui/main_gui.py
 ```
 
-### Génération de rapport
+### Analyse à distance
 
 ```bash
-python src/forensichunter.py --generate-report --format html --input C:\ForensicHunter\Results --output C:\ForensicHunter\Report.html
+python src/forensichunter.py --remote-analyze --target 192.168.1.10 --credentials admin:password
 ```
 
-## 📊 Exemples de rapports
+## 🧩 Architecture modulaire
 
-<div align="center">
-  <img src="assets/report_example.png" alt="Exemple de rapport" width="800">
-</div>
+ForensicHunter est construit sur une architecture modulaire qui permet d'étendre facilement ses fonctionnalités :
 
-## 🔧 Configuration avancée
-
-ForensicHunter peut être configuré via un fichier de configuration JSON :
-
-```json
-{
-  "collectors": {
-    "event_logs": true,
-    "registry": true,
-    "browser_history": true,
-    "processes": true,
-    "network": true,
-    "usb_devices": true,
-    "memory": true,
-    "user_data": true
-  },
-  "analyzers": {
-    "anomaly_detection": true,
-    "rootkit_detection": true,
-    "malware_scan": true,
-    "timeline_generation": true
-  },
-  "reporters": {
-    "html": true,
-    "json": true,
-    "csv": false
-  },
-  "security": {
-    "hash_algorithms": ["md5", "sha1", "sha256"],
-    "chain_of_custody": true,
-    "audit_logging": true
-  },
-  "virustotal": {
-    "enabled": false,
-    "api_key": ""
-  }
-}
+```
+ForensicHunter/
+├── src/                    # Code source principal
+│   ├── collectors/         # Modules de collecte d'artefacts
+│   ├── analyzers/          # Modules d'analyse et de détection
+│   │   ├── memory/         # Analyse de mémoire avec Volatility
+│   │   ├── virustotal/     # Intégration VirusTotal
+│   │   ├── ai/             # Analyse par intelligence artificielle
+│   ├── reporters/          # Générateurs de rapports
+│   ├── gui/                # Interface graphique
+│   ├── cloud/              # Analyse des environnements cloud
+│   ├── siem/               # Intégration SIEM
+│   ├── multiplatform/      # Support multiplateforme
+│   ├── behavioral/         # Analyse comportementale
+│   ├── remote/             # Analyse à distance
+│   ├── blockchain/         # Intégration blockchain
+│   ├── plugins/            # Système de plugins
+│   └── utils/              # Utilitaires communs
+│       ├── integrity/      # Outils d'intégrité des preuves
+│       └── security/       # Outils de sécurité
+├── rules/                  # Règles YARA et IOCs
+├── templates/              # Templates pour les rapports
+├── static/                 # Ressources statiques
+├── docs/                   # Documentation complète
+├── install.bat             # Script d'installation Windows
+├── requirements.txt        # Dépendances Python
+└── README.md               # Documentation principale
 ```
 
-## 🛣️ Roadmap
+## 📊 Comparaison avec les outils existants
 
-### Phase 1 (Actuelle)
+| Fonctionnalité | ForensicHunter | Velociraptor | KAPE | FTK Imager |
+|----------------|----------------|--------------|------|------------|
+| Collecte complète | ✅ | ✅ | ⚠️ | ⚠️ |
+| Intégrité des preuves | ✅ | ⚠️ | ⚠️ | ✅ |
+| Analyse IA | ✅ | ❌ | ❌ | ❌ |
+| Détection d'anomalies | ✅ | ⚠️ | ❌ | ❌ |
+| Multiplateforme | ✅ | ✅ | ❌ | ⚠️ |
+| Analyse à distance | ✅ | ✅ | ❌ | ❌ |
+| Intégration blockchain | ✅ | ❌ | ❌ | ❌ |
+| Interface graphique | ✅ | ✅ | ❌ | ✅ |
+| Open source | ✅ | ✅ | ❌ | ❌ |
+| Compatibilité Windows | XP-11 | 7-11 | 7-10 | XP-10 |
+
+## 🗺️ Roadmap
+
+### Phase 1 (Complétée)
 - ✅ Collecte complète des preuves numériques
-- ✅ Intégrité des preuves et chaîne de custody
-- ✅ Compatibilité avec toutes les versions de Windows
-- ✅ Rapports HTML, JSON et CSV
-- ✅ Analyse mémoire avec Volatility
-- ✅ Détection de rootkits et malwares
+- ✅ Intégrité des preuves garantie
+- ✅ Architecture modulaire avec système de plugins
+- ✅ Rapports exploitables (HTML, JSON, CSV)
+- ✅ Interface CLI professionnelle
 
-### Phase 2 (Prochaine)
-- 🔄 Interface graphique (GUI) pour une utilisation simplifiée
+### Phase 2 (Complétée)
+- ✅ Interface graphique (GUI)
+- ✅ Analyse des environnements cloud (AWS, Azure, GCP)
+- ✅ Intégration SIEM (Splunk, ELK, QRadar)
+- ✅ Support multiplateforme (Windows, Linux, macOS)
+- ✅ Analyse comportementale avancée
 
-### Phase 3 (Future)
-- 📅 Intelligence artificielle pour l'analyse des preuves
-- 📅 Reconstruction automatique des incidents
-- 📅 Analyse forensique à distance
-- 📅 Corrélation multi-sources
-- 📅 Blockchain pour la chaîne de custody
-=======
-Exemple de plugin collecteur :
+### Phase 3 (Complétée)
+- ✅ Intelligence artificielle pour l'analyse
+- ✅ Analyse à distance
+- ✅ Intégration blockchain pour l'intégrité des preuves
+- ✅ Corrélation multi-sources
+- ✅ Visualisations avancées
 
-```python
-from src.plugins.plugin_manager import CollectorPlugin
-
-class MyCustomCollector(CollectorPlugin):
-    def __init__(self, config):
-        super().__init__(config)
-        self.name = "MyCustomCollector"
-        self.description = "Collecte des artefacts personnalisés"
-        self.version = "1.0.0"
-        self.author = "Votre Nom"
-    
-    def collect(self):
-        # Logique de collecte
-        return {"custom_artifacts": [...]}
-```
-
-## 📝 Roadmap
-
-### Version 1.1
-- Support de l'analyse de mémoire avancée avec Volatility
-- Intégration avec VirusTotal et autres services d'analyse
-- Amélioration de la détection des rootkits et malwares furtifs
-
-### Version 1.2
-- Interface graphique (GUI) pour une utilisation simplifiée
-- Visualisation avancée des données (timeline, graphes de relations)
-- Support de l'analyse de disques chiffrés
-
-### Version 2.0
-- Analyse comportementale basée sur l'IA
-- Corrélation automatique entre différentes sources d'artefacts
-- Intégration avec des SIEM et plateformes de threat hunting
->>>>>>> 1bc3bc87f55803125681e8c9da12d27364b731d8
-
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! Consultez notre [guide de contribution](docs/CONTRIBUTING.md) pour plus d'informations.
-
-## 📜 Licence
-
-Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de détails.
+### Phase 4 (Prochaine)
+- 🔄 Analyse temps réel et surveillance continue
+- 🔄 Détection de menaces avancées (APT)
+- 🔄 Intégration avec les solutions EDR
+- 🔄 Analyse forensique de conteneurs et environnements virtualisés
+- 🔄 Marketplace de plugins communautaires
 
 ## 📚 Documentation
+
+Une documentation complète est disponible dans le dossier `docs/` :
 
 - [Manuel utilisateur](docs/user_manual.md)
 - [Guide du développeur](docs/developer_guide.md)
 - [Audit de sécurité](docs/security_audit.md)
-- [API Reference](docs/api_reference.md)
 
-## 🔗 Liens utiles
+## 🤝 Contribution
 
-- [Site officiel](https://forensichunter.io)
-- [Documentation en ligne](https://docs.forensichunter.io)
-- [Forum de support](https://forum.forensichunter.io)
+Les contributions sont les bienvenues ! Consultez le [guide de contribution](docs/CONTRIBUTING.md) pour plus d'informations.
+
+## 📄 Licence
+
+Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
 
 ## 📞 Contact
 
-Pour toute question ou assistance, contactez-nous à support@forensichunter.io
+Pour toute question ou suggestion, n'hésitez pas à ouvrir une issue sur GitHub.
 
 ---
 
 <div align="center">
-  <p>ForensicHunter - L'outil de forensic Windows ultime pour les professionnels de la cybersécurité</p>
-  <p>© 2025 ForensicHunter Team</p>
+  <p>ForensicHunter - L'outil de forensic Windows open source de référence</p>
+  <p>Développé avec ❤️ pour la communauté forensique</p>
 </div>
