@@ -181,12 +181,7 @@ ForensicHunter peut être configuré via un fichier de configuration JSON :
 
 ### Phase 2 (Prochaine)
 - 🔄 Interface graphique (GUI) pour une utilisation simplifiée
-- 🔄 Analyse cloud des artefacts (AWS, Azure, Google Cloud)
-- 🔄 Intégration avec les SIEM populaires
-- 🔄 Support pour Linux et macOS
-- 🔄 Analyse comportementale avancée
 
-<<<<<<< HEAD
 ### Phase 3 (Future)
 - 📅 Intelligence artificielle pour l'analyse des preuves
 - 📅 Reconstruction automatique des incidents
