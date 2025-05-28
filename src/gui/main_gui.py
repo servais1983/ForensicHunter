@@ -15,6 +15,7 @@ import logging
 import json
 import datetime
 import webbrowser
+import re
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -22,7 +23,8 @@ from PyQt5.QtWidgets import (
     QFileDialog, QTreeView, QFileSystemModel, QSplitter, QAction,
     QMenuBar, QStatusBar, QMessageBox, QCheckBox, QGroupBox, 
     QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QScrollArea, QFrame, QListWidget, QListWidgetItem
+    QHeaderView, QScrollArea, QFrame, QListWidget, QListWidgetItem,
+    QDialog, QDialogButtonBox
 )
 from PyQt5.QtGui import QIcon, QFont, QDesktopServices
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl, QSize
@@ -44,6 +46,7 @@ try:
     from src.collectors.registry_collector import RegistryCollector
     from src.collectors.filesystem_collector import FileSystemCollector
     from src.collectors.vmdk_collector import VMDKCollector
+    from src.collectors.disk_collector import DiskCollector # Ajout du collecteur de disque
     from src.analyzers.malware_analyzer import MalwareAnalyzer
     from src.analyzers.phishing_analyzer import PhishingAnalyzer
     from src.analyzers.yara_analyzer import YaraAnalyzer
@@ -57,6 +60,7 @@ except ImportError:
         from collectors.registry_collector import RegistryCollector
         from collectors.filesystem_collector import FileSystemCollector
         from collectors.vmdk_collector import VMDKCollector
+        from collectors.disk_collector import DiskCollector # Ajout du collecteur de disque
         from analyzers.malware_analyzer import MalwareAnalyzer
         from analyzers.phishing_analyzer import PhishingAnalyzer
         from analyzers.yara_analyzer import YaraAnalyzer
@@ -78,6 +82,19 @@ except ImportError:
         
         def check_admin_privileges():
             return False
+        
+        # Classes de remplacement si les modules ne sont pas disponibles
+        class EventLogCollector: pass
+        class RegistryCollector: pass
+        class FileSystemCollector: pass
+        class VMDKCollector: pass
+        class DiskCollector:
+            def list_physical_disks(self): return []
+            def collect(self, disk_ids=None): return []
+        class MalwareAnalyzer: pass
+        class PhishingAnalyzer: pass
+        class YaraAnalyzer: pass
+        class HTMLReporter: pass
 
 # Classe ForensicHunterCore pour gérer l'analyse
 class ForensicHunterCore:
@@ -97,6 +114,7 @@ class ForensicHunterCore:
             self.collectors["registry"] = RegistryCollector(self.config.get("registry", {}))
             self.collectors["filesystem"] = FileSystemCollector(self.config.get("filesystem", {}))
             self.collectors["vmdk"] = VMDKCollector(self.config.get("vmdk", {}))
+            self.collectors["disk"] = DiskCollector(self.config.get("disk", {})) # Ajout du collecteur de disque
             self.logger.info("Collecteurs initialisés avec succès")
         except Exception as e:
             self.logger.error(f"Erreur lors de l'initialisation des collecteurs: {str(e)}")
@@ -182,6 +200,15 @@ class ForensicHunterCore:
                     vmdk_items = self.collectors["vmdk"].collect(vmdk_path=vmdk_path)
                     artifacts.extend(vmdk_items)
                     self.logger.info(f"{len(vmdk_items)} éléments VMDK collectés")
+            
+            # Collecte des disques physiques
+            if options.get("collect_disks", False):
+                self.logger.info("Collecte des disques physiques...")
+                disk_ids = options.get("disk_ids", [])
+                if disk_ids:
+                    disk_items = self.collectors["disk"].collect(disk_ids=disk_ids)
+                    artifacts.extend(disk_items)
+                    self.logger.info(f"{len(disk_items)} éléments de disque collectés")
             
             results["artifacts"] = artifacts
             self.logger.info(f"Collecte terminée: {len(artifacts)} artefacts au total")
@@ -294,6 +321,37 @@ class ForensicWorker(QThread):
             self.error.emit(str(e))
 
 
+class DiskSelectionDialog(QDialog):
+    """Boîte de dialogue pour sélectionner les disques physiques."""
+    def __init__(self, disks, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Sélectionner les disques à analyser")
+        self.setMinimumWidth(400)
+        
+        layout = QVBoxLayout(self)
+        
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QListWidget.MultiSelection)
+        for disk in disks:
+            item = QListWidgetItem(disk["friendly_name"])
+            item.setData(Qt.UserRole, disk["device_id"]) # Stocker l'ID du disque
+            self.list_widget.addItem(item)
+        layout.addWidget(self.list_widget)
+        
+        # Boutons OK / Annuler
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+    def get_selected_disks(self):
+        """Retourne les IDs des disques sélectionnés."""
+        selected_disks = []
+        for item in self.list_widget.selectedItems():
+            selected_disks.append(item.data(Qt.UserRole))
+        return selected_disks
+
+
 class ForensicHunterGUI(QMainWindow):
     """Classe principale de l'interface graphique ForensicHunter."""
 
@@ -322,6 +380,7 @@ class ForensicHunterGUI(QMainWindow):
         self.last_results = None
         self.reports_list = []
         self._load_existing_reports()
+        self.selected_disks = [] # Liste des disques physiques sélectionnés
 
     def _load_config(self):
         """Charge la configuration depuis le fichier config.json."""
@@ -349,6 +408,7 @@ class ForensicHunterGUI(QMainWindow):
             "vmdk": {
                 "max_size_gb": 60
             },
+            "disk": {},
             "malware": {
                 "confidence_threshold": 60
             },
@@ -462,8 +522,8 @@ class ForensicHunterGUI(QMainWindow):
         """Crée le contenu de l'onglet Analyse."""
         layout = QVBoxLayout(self.scan_tab)
         
-        # Sélection de fichiers/dossiers
-        file_group = QGroupBox("Sélection des fichiers à analyser")
+        # Sélection de fichiers/dossiers/disques
+        file_group = QGroupBox("Sélection des sources à analyser")
         file_layout = QVBoxLayout()
         
         # Boutons de sélection
@@ -480,11 +540,15 @@ class ForensicHunterGUI(QMainWindow):
         self.select_vmdk_button.clicked.connect(self._select_vmdk)
         file_buttons_layout.addWidget(self.select_vmdk_button)
         
+        self.select_disk_button = QPushButton("Sélectionner un disque physique...") # Nouveau bouton
+        self.select_disk_button.clicked.connect(self._select_disk)
+        file_buttons_layout.addWidget(self.select_disk_button)
+        
         file_layout.addLayout(file_buttons_layout)
         
-        # Liste des fichiers sélectionnés
-        self.selected_files_list = QListWidget()
-        file_layout.addWidget(self.selected_files_list)
+        # Liste des fichiers/disques sélectionnés
+        self.selected_sources_list = QListWidget()
+        file_layout.addWidget(self.selected_sources_list)
         
         file_group.setLayout(file_layout)
         layout.addWidget(file_group)
@@ -512,6 +576,10 @@ class ForensicHunterGUI(QMainWindow):
         self.vmdk_checkbox = QCheckBox("Fichiers VMDK")
         self.vmdk_checkbox.setChecked(False)
         collectors_layout.addWidget(self.vmdk_checkbox)
+        
+        self.disk_checkbox = QCheckBox("Disques physiques") # Nouvelle checkbox
+        self.disk_checkbox.setChecked(False)
+        collectors_layout.addWidget(self.disk_checkbox)
         
         collectors_group.setLayout(collectors_layout)
         options_layout.addWidget(collectors_group)
@@ -748,7 +816,7 @@ class ForensicHunterGUI(QMainWindow):
         file_name, _ = QFileDialog.getOpenFileName(self, "Sélectionner un fichier à analyser", "",
                                                   "Tous les fichiers (*)", options=options)
         if file_name:
-            self.selected_files_list.addItem(file_name)
+            self.selected_sources_list.addItem(file_name)
             self.log_output.append(f"Fichier sélectionné: {file_name}")
 
     def _select_folder(self):
@@ -756,7 +824,7 @@ class ForensicHunterGUI(QMainWindow):
         options = QFileDialog.Options()
         folder_name = QFileDialog.getExistingDirectory(self, "Sélectionner un dossier à analyser", "", options=options)
         if folder_name:
-            self.selected_files_list.addItem(folder_name)
+            self.selected_sources_list.addItem(folder_name)
             self.log_output.append(f"Dossier sélectionné: {folder_name}")
 
     def _select_vmdk(self):
@@ -765,9 +833,37 @@ class ForensicHunterGUI(QMainWindow):
         file_name, _ = QFileDialog.getOpenFileName(self, "Sélectionner un fichier VMDK", "",
                                                   "Fichiers VMDK (*.vmdk);;Tous les fichiers (*)", options=options)
         if file_name:
-            self.selected_files_list.addItem(file_name)
+            self.selected_sources_list.addItem(file_name)
             self.vmdk_checkbox.setChecked(True)
             self.log_output.append(f"Fichier VMDK sélectionné: {file_name}")
+
+    def _select_disk(self):
+        """Ouvre une boîte de dialogue pour sélectionner des disques physiques."""
+        try:
+            disks = self.core.collectors["disk"].list_physical_disks()
+            if not disks:
+                QMessageBox.information(self, "Aucun disque trouvé", "Aucun disque physique n'a été détecté.")
+                return
+            
+            dialog = DiskSelectionDialog(disks, self)
+            if dialog.exec_() == QDialog.Accepted:
+                selected_disks = dialog.get_selected_disks()
+                if selected_disks:
+                    self.selected_disks = selected_disks
+                    # Ajouter les disques sélectionnés à la liste des sources
+                    for disk_id in selected_disks:
+                        # Trouver le nom convivial
+                        friendly_name = disk_id
+                        for disk in disks:
+                            if disk["device_id"] == disk_id:
+                                friendly_name = disk["friendly_name"]
+                                break
+                        self.selected_sources_list.addItem(f"Disque: {friendly_name}")
+                    self.disk_checkbox.setChecked(True)
+                    self.log_output.append(f"Disques physiques sélectionnés: {', '.join(selected_disks)}")
+        except Exception as e:
+            logger.error(f"Erreur lors de la sélection des disques: {str(e)}")
+            QMessageBox.critical(self, "Erreur", f"Erreur lors de la sélection des disques: {str(e)}")
 
     def _select_output_dir(self):
         """Ouvre une boîte de dialogue pour sélectionner le dossier de sortie."""
@@ -934,7 +1030,7 @@ class ForensicHunterGUI(QMainWindow):
                     # Afficher un aperçu simplifié
                     self.report_preview.setHtml(f"""
                     <h2>{title}</h2>
-                    <p>Rapport généré le {os.path.getmtime(report_path)}</p>
+                    <p>Rapport généré le {datetime.datetime.fromtimestamp(os.path.getmtime(report_path)).strftime('%Y-%m-%d %H:%M:%S')}</p>
                     <p>Chemin: {report_path}</p>
                     <p><i>Le rapport complet est ouvert dans votre navigateur.</i></p>
                     """)
@@ -980,9 +1076,9 @@ class ForensicHunterGUI(QMainWindow):
             QMessageBox.warning(self, "Analyse en cours", "Une analyse est déjà en cours d'exécution.")
             return
         
-        # Vérifier qu'au moins un fichier est sélectionné
-        if self.selected_files_list.count() == 0:
-            QMessageBox.warning(self, "Aucun fichier sélectionné", "Veuillez sélectionner au moins un fichier ou dossier à analyser.")
+        # Vérifier qu'au moins une source est sélectionnée
+        if self.selected_sources_list.count() == 0:
+            QMessageBox.warning(self, "Aucune source sélectionnée", "Veuillez sélectionner au moins un fichier, dossier ou disque à analyser.")
             return
         
         # Préparer les options d'analyse
@@ -998,24 +1094,31 @@ class ForensicHunterGUI(QMainWindow):
             "collect_registry": self.registry_checkbox.isChecked(),
             "collect_filesystem": self.filesystem_checkbox.isChecked(),
             "collect_vmdk": self.vmdk_checkbox.isChecked(),
+            "collect_disks": self.disk_checkbox.isChecked(), # Ajout de l'option disque
             
             # Analyseurs
             "analyze_malware": self.malware_checkbox.isChecked(),
             "analyze_phishing": self.phishing_checkbox.isChecked(),
             "analyze_yara": self.yara_checkbox.isChecked(),
             
-            # Fichiers à analyser
-            "filesystem_paths": []
+            # Fichiers/Disques à analyser
+            "filesystem_paths": [],
+            "vmdk_path": None,
+            "disk_ids": self.selected_disks # Ajout des IDs des disques sélectionnés
         }
         
-        # Ajouter les fichiers sélectionnés
-        for i in range(self.selected_files_list.count()):
-            item = self.selected_files_list.item(i)
-            scan_options["filesystem_paths"].append(item.text())
+        # Ajouter les fichiers/dossiers sélectionnés
+        for i in range(self.selected_sources_list.count()):
+            item = self.selected_sources_list.item(i)
+            source_text = item.text()
             
-            # Si c'est un VMDK, l'ajouter comme VMDK
-            if item.text().lower().endswith(".vmdk"):
-                scan_options["vmdk_path"] = item.text()
+            if source_text.startswith("Disque:"):
+                # C'est un disque, déjà géré par self.selected_disks
+                continue
+            elif source_text.lower().endswith(".vmdk"):
+                scan_options["vmdk_path"] = source_text
+            else:
+                scan_options["filesystem_paths"].append(source_text)
         
         # Créer le répertoire de sortie s'il n'existe pas
         os.makedirs(scan_options["output_dir"], exist_ok=True)
@@ -1118,3 +1221,4 @@ def launch_gui():
 
 if __name__ == '__main__':
     sys.exit(launch_gui())
+
