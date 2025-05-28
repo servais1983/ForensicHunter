@@ -65,6 +65,7 @@ if %errorlevel% neq 0 (
 echo [*] Création du lanceur ForensicHunter...
 echo @echo off > forensichunter.bat
 echo call venv\Scripts\activate.bat >> forensichunter.bat
+echo set PYTHONPATH=%%CD%% >> forensichunter.bat
 echo python src\forensichunter.py %%* >> forensichunter.bat
 echo deactivate >> forensichunter.bat
 
