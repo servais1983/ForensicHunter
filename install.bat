@@ -69,11 +69,20 @@ echo set PYTHONPATH=%%CD%% >> forensichunter.bat
 echo python src\forensichunter.py %%* >> forensichunter.bat
 echo deactivate >> forensichunter.bat
 
+:: Création du lanceur GUI
+echo [*] Création du lanceur GUI...
+echo @echo off > forensichunter_gui.bat
+echo call venv\Scripts\activate.bat >> forensichunter_gui.bat
+echo set PYTHONPATH=%%CD%% >> forensichunter_gui.bat
+echo python src\gui\main_gui.py >> forensichunter_gui.bat
+echo deactivate >> forensichunter_gui.bat
+
 :: Finalisation
 echo.
 echo [+] Installation terminée avec succès!
-echo [+] Vous pouvez maintenant lancer ForensicHunter avec la commande:
-echo [+] forensichunter.bat --help
+echo [+] Vous pouvez maintenant lancer ForensicHunter avec les commandes:
+echo [+] forensichunter.bat --help (pour l'interface en ligne de commande)
+echo [+] forensichunter_gui.bat (pour l'interface graphique)
 echo.
 echo ===================================================
 pause

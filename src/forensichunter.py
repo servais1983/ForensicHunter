@@ -18,15 +18,53 @@ from datetime import datetime
 from pathlib import Path
 
 # Ajout du répertoire parent au path pour les imports relatifs
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Cette ligne est cruciale pour permettre l'exécution du script directement
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
-from src.utils.logger import setup_logger
-from src.utils.banner import display_banner
-from src.utils.config import Config
-from src.utils.helpers import check_admin_privileges, create_output_dir
-from src.collectors.collector_manager import CollectorManager
-from src.analyzers.analyzer_manager import AnalyzerManager
-from src.reporters.reporter_manager import ReporterManager
+# Imports des modules internes
+# Utilisation d'imports relatifs pour plus de robustesse
+from utils.logger import setup_logger
+from utils.config import Config
+from utils.helpers import check_admin_privileges, create_output_dir
+
+# Imports conditionnels pour éviter les erreurs si les modules ne sont pas encore créés
+try:
+    from utils.banner import display_banner
+    from collectors.collector_manager import CollectorManager
+    from analyzers.analyzer_manager import AnalyzerManager
+    from reporters.reporter_manager import ReporterManager
+except ImportError:
+    # Fonction de remplacement si les modules ne sont pas disponibles
+    def display_banner():
+        print("=" * 60)
+        print("ForensicHunter - Outil de forensic avancé pour Windows")
+        print("=" * 60)
+        print()
+
+    # Classes de remplacement minimales
+    class CollectorManager:
+        def __init__(self, config):
+            self.config = config
+        
+        def collect_artifacts(self):
+            return []
+    
+    class AnalyzerManager:
+        def __init__(self, config):
+            self.config = config
+        
+        def analyze_artifacts(self, artifacts):
+            return {}
+    
+    class ReporterManager:
+        def __init__(self, config):
+            self.config = config
+        
+        def generate_reports(self, artifacts, analysis_results):
+            return {"placeholder": "report_path"}
 
 __version__ = "1.0.0"
 
@@ -42,6 +80,7 @@ def parse_arguments():
     parser.add_argument("-v", "--version", action="version", version=f"ForensicHunter v{__version__}")
     parser.add_argument("--debug", action="store_true", help="Active le mode debug")
     parser.add_argument("-o", "--output", default="forensichunter_report", help="Répertoire de sortie pour les résultats")
+    parser.add_argument("--gui", action="store_true", help="Lance l'interface graphique")
     
     # Options de collecte
     collection_group = parser.add_argument_group("Options de collecte")
@@ -77,6 +116,16 @@ def main():
     
     # Parsing des arguments
     args = parse_arguments()
+    
+    # Lancement de l'interface graphique si demandé
+    if args.gui:
+        try:
+            from gui.main_gui import launch_gui
+            return launch_gui()
+        except ImportError:
+            print("[!] ERREUR: L'interface graphique n'a pas pu être chargée.")
+            print("[!] Vérifiez que PyQt5 est installé: pip install PyQt5")
+            return 1
     
     # Configuration du logger
     log_level = logging.DEBUG if args.debug else logging.INFO

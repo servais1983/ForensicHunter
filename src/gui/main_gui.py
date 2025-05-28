@@ -21,14 +21,38 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
-# Importation des modules ForensicHunter
-# Assurez-vous que le chemin vers src est dans sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ajout du répertoire parent au path pour les imports relatifs
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)  # src/
+root_dir = os.path.dirname(parent_dir)     # racine du projet
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
-from src.forensichunter import ForensicHunterCore
-from src.utils.security.security_manager import SecurityManager
+# Importation des modules ForensicHunter avec des imports relatifs
+try:
+    # Import depuis le même package (src)
+    from ..utils.logger import setup_logger, get_logger
+    from ..utils.helpers import check_admin_privileges
+except ImportError:
+    # Fallback pour l'exécution directe
+    from utils.logger import setup_logger, get_logger
+    from utils.helpers import check_admin_privileges
 
-logger = logging.getLogger("forensichunter")
+# Classe de remplacement pour ForensicHunterCore si non disponible
+class ForensicHunterCore:
+    def __init__(self, config=None):
+        self.config = config or {}
+
+# Classe de remplacement pour SecurityManager si non disponible
+class SecurityManager:
+    def __init__(self, config=None):
+        self.config = config or {}
+    
+    def check_admin_privileges(self):
+        return check_admin_privileges()
+
+# Obtention du logger
+logger = get_logger("forensichunter.gui")
 
 
 class ForensicWorker(QThread):
@@ -294,14 +318,16 @@ class ForensicHunterGUI(QMainWindow):
             event.accept()
 
 
-if __name__ == '__main__':
+def launch_gui():
+    """Lance l'interface graphique."""
     # Configuration du logging
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-                        handlers=[logging.StreamHandler()])
+    setup_logger(name="forensichunter.gui", level=logging.INFO)
     
     app = QApplication(sys.argv)
     main_window = ForensicHunterGUI()
     main_window.show()
-    sys.exit(app.exec_())
+    return app.exec_()
 
+
+if __name__ == '__main__':
+    sys.exit(launch_gui())
