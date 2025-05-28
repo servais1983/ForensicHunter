@@ -25,6 +25,7 @@ pillow>=9.5.0
 colorama>=0.4.6
 tabulate>=0.9.0
 pyinstaller>=5.10.1; platform_system == "Windows"
+PyQt5>=5.15.9; platform_system == "Windows"
 
 # Dépendances pour l'analyse de navigateurs
 browsercookie>=0.7.7
