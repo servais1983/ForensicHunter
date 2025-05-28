@@ -90,14 +90,20 @@ class FileSystemCollector(BaseCollector):
         """
         return "Collecteur d'artefacts du système de fichiers Windows (fichiers système, temporaires, historique, etc.)"
     
-    def collect(self):
+    def collect(self, paths=None):
         """
         Collecte les artefacts du système de fichiers Windows.
+        
+        Args:
+            paths (list, optional): Liste de chemins spécifiques à collecter. Si None, utilise les chemins par défaut.
         
         Returns:
             list: Liste d'objets Artifact collectés
         """
         self.clear_artifacts()
+        
+        # Utiliser les chemins spécifiés ou les chemins par défaut
+        target_paths = paths if paths is not None else self.paths
         
         # Vérifier si nous sommes sur Windows
         if os.name != "nt":
@@ -106,18 +112,18 @@ class FileSystemCollector(BaseCollector):
         # Collecter les artefacts
         file_count = 0
         
-        for path_pattern in self.paths:
+        for path_pattern in target_paths:
             logger.info(f"Collecte des artefacts pour le chemin {path_pattern}...")
             
             # Résoudre les chemins avec caractères génériques
             try:
-                paths = glob.glob(path_pattern, recursive=True)
+                resolved_paths = glob.glob(path_pattern, recursive=True)
                 
-                if not paths:
+                if not resolved_paths:
                     logger.warning(f"Aucun chemin trouvé pour le motif {path_pattern}")
                     continue
                 
-                for path in paths:
+                for path in resolved_paths:
                     try:
                         if os.path.isfile(path):
                             self._collect_file(path)
