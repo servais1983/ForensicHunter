@@ -99,7 +99,7 @@ Un audit de sécurité complet a été réalisé et est disponible dans `docs/se
 - 4 Go de RAM minimum (8 Go recommandés)
 - 1 Go d'espace disque disponible
 
-### Installation automatique
+### Installation automatique (Recommandée)
 
 1. Téléchargez la dernière version de ForensicHunter
 2. Exécutez le script d'installation :
@@ -108,7 +108,13 @@ Un audit de sécurité complet a été réalisé et est disponible dans `docs/se
 install.bat
 ```
 
-### Installation manuelle
+Ce script va :
+- Vérifier votre installation Python
+- Créer un environnement virtuel Python
+- Installer toutes les dépendances nécessaires
+- Créer un lanceur `forensichunter.bat` pour exécuter l'application
+
+### Installation manuelle (Avancée)
 
 1. Clonez le dépôt :
 
@@ -116,38 +122,75 @@ install.bat
 git clone https://github.com/servais1983/ForensicHunter.git
 ```
 
-2. Installez les dépendances :
+2. Créez un environnement virtuel et installez les dépendances :
 
 ```bash
 cd ForensicHunter
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+3. Créez manuellement le lanceur `forensichunter.bat` avec le contenu suivant :
+
+```batch
+@echo off
+call venv\Scripts\activate.bat
+set PYTHONPATH=%CD%
+python src\forensichunter.py %*
+deactivate
 ```
 
 ## 🔧 Utilisation
 
+### ⚠️ IMPORTANT : Toujours utiliser le lanceur .bat sous Windows
+
+Pour éviter les problèmes d'importation de modules, vous devez **toujours** utiliser le lanceur `forensichunter.bat` généré lors de l'installation pour exécuter l'application. Ce lanceur configure correctement l'environnement Python et les chemins d'importation.
+
 ### Collecte complète
 
-```bash
-python src/forensichunter.py --full-scan --output C:\ForensicHunter\Results
+```batch
+forensichunter.bat --full-scan --output C:\ForensicHunter\Results
 ```
 
 ### Collecte ciblée
 
-```bash
-python src/forensichunter.py --collect event_logs registry browser_history --output C:\ForensicHunter\Results
+```batch
+forensichunter.bat --collect event_logs registry browser_history --output C:\ForensicHunter\Results
+```
+
+### Aide et options disponibles
+
+```batch
+forensichunter.bat --help
 ```
 
 ### Interface graphique
 
-```bash
-python src/gui/main_gui.py
+Pour lancer l'interface graphique, utilisez :
+
+```batch
+forensichunter.bat --gui
 ```
 
-### Analyse à distance
+Ou créez un raccourci vers :
 
-```bash
-python src/forensichunter.py --remote-analyze --target 192.168.1.10 --credentials admin:password
+```batch
+venv\Scripts\python.exe src\gui\main_gui.py
 ```
+
+### Après une mise à jour du dépôt
+
+Si vous mettez à jour le dépôt avec `git pull`, vous devez régénérer le lanceur :
+
+1. Supprimez l'ancien fichier `forensichunter.bat`
+2. Exécutez à nouveau `install.bat` pour générer un nouveau lanceur
+
+### Résolution des problèmes courants
+
+Si vous rencontrez l'erreur `ModuleNotFoundError: No module named 'src.utils.logger'` :
+- N'exécutez pas directement `python src/forensichunter.py`
+- Utilisez toujours le lanceur `forensichunter.bat` qui configure correctement le PYTHONPATH
 
 ## 🧩 Architecture modulaire
 
