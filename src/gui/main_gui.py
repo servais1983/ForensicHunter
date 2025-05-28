@@ -21,22 +21,41 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
-# Ajout du répertoire parent au path pour les imports relatifs
+# Ajout du répertoire parent au path pour les imports absolus
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)  # src/
 root_dir = os.path.dirname(parent_dir)     # racine du projet
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-# Importation des modules ForensicHunter avec des imports relatifs
+# Importation des modules ForensicHunter avec des imports absolus
 try:
-    # Import depuis le même package (src)
-    from ..utils.logger import setup_logger, get_logger
-    from ..utils.helpers import check_admin_privileges
+    from src.utils.logger import setup_logger, get_logger
+    from src.utils.helpers import check_admin_privileges
 except ImportError:
-    # Fallback pour l'exécution directe
-    from utils.logger import setup_logger, get_logger
-    from utils.helpers import check_admin_privileges
+    # Si l'import absolu avec src. échoue, essayons sans le préfixe src.
+    try:
+        from utils.logger import setup_logger, get_logger
+        from utils.helpers import check_admin_privileges
+    except ImportError:
+        # Définition de fonctions de remplacement si les modules ne sont pas disponibles
+        def setup_logger(name="forensichunter", log_dir=None, level=logging.INFO):
+            logger = logging.getLogger(name)
+            logger.setLevel(level)
+            if not logger.handlers:
+                handler = logging.StreamHandler()
+                formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+                handler.setFormatter(formatter)
+                logger.addHandler(handler)
+            return logger
+        
+        def get_logger(name="forensichunter"):
+            return setup_logger(name)
+        
+        def check_admin_privileges():
+            return False
 
 # Classe de remplacement pour ForensicHunterCore si non disponible
 class ForensicHunterCore:
