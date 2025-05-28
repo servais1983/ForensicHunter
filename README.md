@@ -1,35 +1,40 @@
 <div align="center">
-  <img src="static/logo.png" alt="ForensicHunter Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/servais1983/ForensicHunter/main/static/logo.png" alt="ForensicHunter Logo" width="200"/>
   <h1>ForensicHunter</h1>
   <p>Outil d'analyse forensique professionnel pour Windows</p>
+  
+  ![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+  ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
+  ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
+  ![Build](https://img.shields.io/badge/build-passing-success.svg)
 </div>
 
-## À propos
+## 📋 À propos
 
 ForensicHunter est un outil d'analyse forensique professionnel conçu pour les analystes en cybersécurité. Il permet d'analyser des fichiers VMDK, des journaux d'événements Windows, des fichiers de registre et d'autres artefacts système pour détecter des traces de malware, ransomware, phishing, backdoors et autres indicateurs de compromission.
 
-## Fonctionnalités principales
+## ✨ Fonctionnalités principales
 
-- **Collecte d'artefacts Windows**
-  - Journaux d'événements (Event Logs)
-  - Fichiers de registre (Registry)
-  - Système de fichiers (FileSystem)
-  - Fichiers VMDK (jusqu'à 60GB)
+- **🔍 Collecte d'artefacts Windows**
+  - 📊 Journaux d'événements (Event Logs)
+  - 🔑 Fichiers de registre (Registry)
+  - 📁 Système de fichiers (FileSystem)
+  - 💾 Fichiers VMDK (jusqu'à 60GB)
 
-- **Analyse de menaces**
-  - Détection de malware et ransomware (notamment LockBit 3.0)
-  - Analyse de traces de phishing
-  - Détection de backdoors et persistance
-  - Analyse de mouvements latéraux
-  - Intégration de règles YARA
+- **🛡️ Analyse de menaces**
+  - 🦠 Détection de malware et ransomware (notamment LockBit 3.0)
+  - 🎣 Analyse de traces de phishing
+  - 🚪 Détection de backdoors et persistance
+  - 🔄 Analyse de mouvements latéraux
+  - 📜 Intégration de règles YARA
 
-- **Génération de rapports**
-  - Rapports HTML interactifs
-  - Système de scoring des menaces
-  - Visualisations et chronologies
-  - Exportation locale sur le PC
+- **📊 Génération de rapports**
+  - 📱 Rapports HTML interactifs
+  - ⭐ Système de scoring des menaces
+  - 📈 Visualisations et chronologies
+  - 💻 Exportation locale sur le PC
 
-## Installation
+## 🚀 Installation
 
 ### Prérequis
 
@@ -55,7 +60,7 @@ ForensicHunter est un outil d'analyse forensique professionnel conçu pour les a
    forensichunter_gui.bat
    ```
 
-### Résolution des problèmes d'installation
+### 🔧 Résolution des problèmes d'installation
 
 Si vous rencontrez des erreurs lors de l'installation :
 
@@ -72,7 +77,7 @@ Si vous rencontrez des erreurs lors de l'installation :
    deactivate
    ```
 
-## Utilisation
+## 📖 Utilisation
 
 ### Interface graphique
 
@@ -98,7 +103,7 @@ Si vous rencontrez des erreurs lors de l'installation :
    forensichunter.bat --help
    ```
 
-## Structure du projet
+## 📂 Structure du projet
 
 ```
 ForensicHunter/
@@ -117,7 +122,7 @@ ForensicHunter/
 └── README.md           # Ce fichier
 ```
 
-## Mise à jour
+## 🔄 Mise à jour
 
 Pour mettre à jour ForensicHunter :
 
@@ -137,6 +142,16 @@ Pour mettre à jour ForensicHunter :
    install.bat
    ```
 
-## Licence
+## 📝 Licence
 
 © 2025 ForensicHunter Team - Tous droits réservés
+
+---
+
+<div align="center">
+  <p>Développé avec ❤️ par l'équipe ForensicHunter</p>
+  
+  ![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
+  ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+  ![Security](https://img.shields.io/badge/Security-FF0000?style=for-the-badge&logo=shield&logoColor=white)
+</div>
