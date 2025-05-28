@@ -36,11 +36,20 @@ ForensicHunter est un outil d'analyse forensique professionnel conçu pour les a
 
 ## 🚀 Installation
 
+### ⚠️ IMPORTANT : Exécuter en mode Administrateur
+
+**Toutes les commandes doivent être exécutées dans une invite de commande (CMD) ouverte en mode Administrateur.**
+
+Pour ouvrir CMD en mode Administrateur :
+1. Recherchez "cmd" dans le menu Démarrer
+2. Faites un clic droit sur "Invite de commandes"
+3. Sélectionnez "Exécuter en tant qu'administrateur"
+
 ### Prérequis
 
 - Windows 10/11
 - Python 3.8 ou supérieur
-- Privilèges administrateur (recommandé)
+- Privilèges administrateur (obligatoire)
 
 ### Installation rapide
 
@@ -50,7 +59,7 @@ ForensicHunter est un outil d'analyse forensique professionnel conçu pour les a
    cd ForensicHunter
    ```
 
-2. Exécutez le script d'installation :
+2. Exécutez le script d'installation (en mode Administrateur) :
    ```
    install.bat
    ```
@@ -64,7 +73,7 @@ ForensicHunter est un outil d'analyse forensique professionnel conçu pour les a
 
 Si vous rencontrez des erreurs lors de l'installation :
 
-1. **Erreur de permission** : Exécutez l'invite de commande en tant qu'administrateur, puis :
+1. **Erreur de permission** : Vérifiez que vous exécutez bien l'invite de commande en tant qu'administrateur, puis :
    ```
    rmdir /s /q venv
    install.bat
@@ -81,7 +90,7 @@ Si vous rencontrez des erreurs lors de l'installation :
 
 ### Interface graphique
 
-1. Lancez l'interface graphique :
+1. Lancez l'interface graphique (en mode Administrateur) :
    ```
    forensichunter_gui.bat
    ```
@@ -93,7 +102,7 @@ Si vous rencontrez des erreurs lors de l'installation :
 
 ### Ligne de commande
 
-1. Pour une analyse complète :
+1. Pour une analyse complète (en mode Administrateur) :
    ```
    forensichunter.bat --full-scan --output C:\ForensicHunter\Results
    ```
@@ -124,7 +133,7 @@ ForensicHunter/
 
 ## 🔄 Mise à jour
 
-Pour mettre à jour ForensicHunter :
+Pour mettre à jour ForensicHunter (en mode Administrateur) :
 
 1. Récupérez les dernières modifications :
    ```
