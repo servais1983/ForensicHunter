@@ -2,948 +2,1317 @@
 # -*- coding: utf-8 -*-
 
 """
-Module de génération de rapports HTML.
+Module de génération de rapports HTML pour ForensicHunter.
 
-Ce module est responsable de la génération de rapports HTML à partir
-des artefacts collectés et des résultats d'analyse.
+Ce module permet de générer des rapports HTML détaillés et professionnels
+à partir des résultats d'analyse forensique.
 """
 
 import os
 import logging
 import datetime
 import json
-from typing import Dict, List, Any, Optional
-from pathlib import Path
 import base64
-import jinja2
+import hashlib
+from pathlib import Path
+import shutil
 
-logger = logging.getLogger("forensichunter")
-
+# Configuration du logger
+logger = logging.getLogger("forensichunter.reporters")
 
 class HTMLReporter:
-    """Générateur de rapports HTML."""
-
-    def __init__(self, config, output_dir):
+    """Générateur de rapports HTML pour ForensicHunter."""
+    
+    def __init__(self, config=None):
         """
-        Initialise le générateur de rapports HTML.
+        Initialise un nouveau générateur de rapports HTML.
         
         Args:
-            config: Configuration de l'application
-            output_dir: Répertoire de sortie pour les rapports
+            config (dict, optional): Configuration du générateur
         """
-        self.config = config
-        self.output_dir = output_dir
-        
-        # Chemin vers les templates
-        self.template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
-        
-        # Initialisation de l'environnement Jinja2
-        self.jinja_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(self.template_dir),
-            autoescape=jinja2.select_autoescape(['html', 'xml']),
-            trim_blocks=True,
-            lstrip_blocks=True
-        )
-        
-        # Ajout de filtres personnalisés
-        self.jinja_env.filters['format_timestamp'] = self._format_timestamp
-        self.jinja_env.filters['format_size'] = self._format_size
-        self.jinja_env.filters['to_json'] = self._to_json
+        self.config = config or {}
+        self.title = self.config.get("title", "Rapport d'analyse forensique - ForensicHunter")
+        self.company_name = self.config.get("company_name", "ForensicHunter")
+        self.company_logo = self.config.get("company_logo", "")
+        self.include_artifacts = self.config.get("include_artifacts", True)
+        self.max_artifacts_per_finding = self.config.get("max_artifacts_per_finding", 10)
+        self.include_raw_data = self.config.get("include_raw_data", False)
+        self.theme = self.config.get("theme", "light")  # light, dark
+        self.static_dir = self.config.get("static_dir", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static"))
+        self.template_dir = self.config.get("template_dir", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates"))
     
-    def _format_timestamp(self, timestamp):
-        """Formate un timestamp en date lisible."""
-        if not timestamp:
-            return "N/A"
-        
-        try:
-            if isinstance(timestamp, str):
-                # Si c'est déjà une chaîne ISO, on la parse
-                dt = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                return dt.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                # Sinon, on suppose que c'est un timestamp Unix
-                return datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        except:
-            return str(timestamp)
-    
-    def _format_size(self, size_bytes):
-        """Formate une taille en octets en format lisible."""
-        if not isinstance(size_bytes, (int, float)):
-            return "N/A"
-        
-        # Conversion en format lisible
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size_bytes < 1024.0:
-                return f"{size_bytes:.2f} {unit}"
-            size_bytes /= 1024.0
-        
-        return f"{size_bytes:.2f} PB"
-    
-    def _to_json(self, data):
-        """Convertit des données en JSON formaté."""
-        return json.dumps(data, indent=2)
-    
-    def _create_default_template(self):
+    def get_name(self):
         """
-        Crée un template HTML par défaut si aucun n'est trouvé.
+        Retourne le nom du générateur de rapports.
         
         Returns:
-            Chemin vers le template créé
+            str: Nom du générateur de rapports
         """
-        template_path = os.path.join(self.template_dir, "report.html")
+        return "HTMLReporter"
+    
+    def get_description(self):
+        """
+        Retourne la description du générateur de rapports.
         
-        # Création du répertoire des templates s'il n'existe pas
-        os.makedirs(self.template_dir, exist_ok=True)
+        Returns:
+            str: Description du générateur de rapports
+        """
+        return "Générateur de rapports HTML détaillés et professionnels"
+    
+    def generate_report(self, findings, artifacts, output_path, case_info=None):
+        """
+        Génère un rapport HTML à partir des résultats d'analyse.
         
-        # Contenu du template par défaut
-        template_content = """<!DOCTYPE html>
+        Args:
+            findings (list): Liste d'objets Finding résultant de l'analyse
+            artifacts (list): Liste d'objets Artifact collectés
+            output_path (str): Chemin du fichier de sortie
+            case_info (dict, optional): Informations sur le cas
+            
+        Returns:
+            str: Chemin du rapport généré
+        """
+        try:
+            # Créer le répertoire de sortie s'il n'existe pas
+            output_dir = os.path.dirname(output_path)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Créer un répertoire pour les ressources statiques
+            assets_dir = os.path.join(output_dir, "assets")
+            os.makedirs(assets_dir, exist_ok=True)
+            
+            # Copier les ressources statiques
+            self._copy_static_assets(assets_dir)
+            
+            # Préparer les données du rapport
+            report_data = self._prepare_report_data(findings, artifacts, case_info)
+            
+            # Générer le HTML
+            html_content = self._generate_html(report_data)
+            
+            # Écrire le rapport
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            
+            logger.info(f"Rapport HTML généré avec succès: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération du rapport HTML: {str(e)}")
+            return None
+    
+    def _prepare_report_data(self, findings, artifacts, case_info=None):
+        """
+        Prépare les données pour le rapport.
+        
+        Args:
+            findings (list): Liste d'objets Finding résultant de l'analyse
+            artifacts (list): Liste d'objets Artifact collectés
+            case_info (dict, optional): Informations sur le cas
+            
+        Returns:
+            dict: Données préparées pour le rapport
+        """
+        # Informations sur le cas
+        if not case_info:
+            case_info = {
+                "case_id": f"FH-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                "case_name": "Analyse forensique",
+                "analyst": "ForensicHunter",
+                "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        
+        # Statistiques générales
+        stats = {
+            "total_findings": len(findings),
+            "total_artifacts": len(artifacts),
+            "severity_counts": {
+                "critical": 0,
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "info": 0
+            },
+            "type_counts": {},
+            "artifact_type_counts": {}
+        }
+        
+        # Compter les résultats par sévérité et type
+        for finding in findings:
+            severity = finding.severity.lower()
+            if severity in stats["severity_counts"]:
+                stats["severity_counts"][severity] += 1
+            
+            finding_type = finding.type
+            if finding_type not in stats["type_counts"]:
+                stats["type_counts"][finding_type] = 0
+            stats["type_counts"][finding_type] += 1
+        
+        # Compter les artefacts par type
+        for artifact in artifacts:
+            artifact_type = artifact.type
+            if artifact_type not in stats["artifact_type_counts"]:
+                stats["artifact_type_counts"][artifact_type] = 0
+            stats["artifact_type_counts"][artifact_type] += 1
+        
+        # Créer un index des artefacts pour référence rapide
+        artifact_index = {}
+        for artifact in artifacts:
+            artifact_index[artifact.id] = artifact
+        
+        # Préparer les résultats pour le rapport
+        prepared_findings = []
+        for finding in findings:
+            # Préparer les artefacts associés
+            associated_artifacts = []
+            
+            if self.include_artifacts:
+                for artifact_id in finding.artifacts:
+                    if isinstance(artifact_id, str) and artifact_id in artifact_index:
+                        artifact = artifact_index[artifact_id]
+                        associated_artifacts.append({
+                            "id": artifact.id,
+                            "type": artifact.type,
+                            "source": artifact.source,
+                            "timestamp": artifact.timestamp,
+                            "metadata": artifact.metadata,
+                            "data_preview": self._get_artifact_preview(artifact)
+                        })
+                    elif hasattr(artifact_id, 'id'):
+                        # Si l'artefact est directement fourni
+                        artifact = artifact_id
+                        associated_artifacts.append({
+                            "id": artifact.id,
+                            "type": artifact.type,
+                            "source": artifact.source,
+                            "timestamp": artifact.timestamp,
+                            "metadata": artifact.metadata,
+                            "data_preview": self._get_artifact_preview(artifact)
+                        })
+            
+            # Limiter le nombre d'artefacts si nécessaire
+            if len(associated_artifacts) > self.max_artifacts_per_finding:
+                associated_artifacts = associated_artifacts[:self.max_artifacts_per_finding]
+                associated_artifacts.append({
+                    "id": "...",
+                    "type": "...",
+                    "source": f"... et {len(finding.artifacts) - self.max_artifacts_per_finding} autres artefacts"
+                })
+            
+            # Préparer le résultat
+            prepared_finding = {
+                "id": finding.id,
+                "type": finding.type,
+                "description": finding.description,
+                "severity": finding.severity,
+                "confidence": finding.confidence,
+                "timestamp": finding.timestamp,
+                "metadata": finding.metadata,
+                "artifacts": associated_artifacts,
+                "severity_class": self._get_severity_class(finding.severity),
+                "confidence_class": self._get_confidence_class(finding.confidence)
+            }
+            
+            prepared_findings.append(prepared_finding)
+        
+        # Trier les résultats par sévérité (décroissante) puis par confiance (décroissante)
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        prepared_findings.sort(key=lambda x: (severity_order.get(x["severity"].lower(), 999), -x["confidence"]))
+        
+        # Données complètes du rapport
+        report_data = {
+            "title": self.title,
+            "company_name": self.company_name,
+            "company_logo": self.company_logo,
+            "case_info": case_info,
+            "stats": stats,
+            "findings": prepared_findings,
+            "generation_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "theme": self.theme
+        }
+        
+        return report_data
+    
+    def _get_artifact_preview(self, artifact):
+        """
+        Génère un aperçu du contenu d'un artefact.
+        
+        Args:
+            artifact (Artifact): Artefact à prévisualiser
+            
+        Returns:
+            str: Aperçu du contenu de l'artefact
+        """
+        try:
+            if not artifact.data:
+                return "Pas de données disponibles"
+            
+            if isinstance(artifact.data, dict):
+                if artifact.type == "filesystem":
+                    file_type = artifact.data.get("type", "")
+                    
+                    if file_type == "text":
+                        content = artifact.data.get("content", "")
+                        if content:
+                            # Limiter la taille de l'aperçu
+                            if len(content) > 500:
+                                return content[:500] + "..."
+                            return content
+                    
+                    elif file_type == "binary":
+                        return "Données binaires (aperçu non disponible)"
+                    
+                    elif file_type == "metadata_only":
+                        return "Métadonnées uniquement (contenu non disponible)"
+                    
+                    return "Type de fichier inconnu"
+                
+                elif artifact.type == "registry":
+                    # Formater les valeurs de registre
+                    formatted = []
+                    for name, value in artifact.data.items():
+                        if isinstance(value, dict):
+                            value_str = value.get("value", "")
+                            value_type = value.get("type", "")
+                            formatted.append(f"{name} = {value_str} ({value_type})")
+                        else:
+                            formatted.append(f"{name} = {value}")
+                    
+                    return "\n".join(formatted)
+                
+                elif artifact.type == "event_log":
+                    # Formater les événements
+                    event_id = artifact.metadata.get("event_id", "") if artifact.metadata else ""
+                    log_type = artifact.metadata.get("log_type", "") if artifact.metadata else ""
+                    return f"Événement {event_id} dans {log_type}: {artifact.data}"
+                
+                else:
+                    # Pour les autres types, afficher un résumé JSON
+                    json_str = json.dumps(artifact.data, indent=2)
+                    if len(json_str) > 500:
+                        return json_str[:500] + "..."
+                    return json_str
+            
+            else:
+                # Pour les données non structurées, afficher un aperçu
+                data_str = str(artifact.data)
+                if len(data_str) > 500:
+                    return data_str[:500] + "..."
+                return data_str
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération de l'aperçu de l'artefact {artifact.id}: {str(e)}")
+            return "Erreur lors de la génération de l'aperçu"
+    
+    def _get_severity_class(self, severity):
+        """
+        Retourne la classe CSS pour une sévérité donnée.
+        
+        Args:
+            severity (str): Sévérité (critical, high, medium, low, info)
+            
+        Returns:
+            str: Classe CSS correspondante
+        """
+        severity = severity.lower()
+        if severity == "critical":
+            return "severity-critical"
+        elif severity == "high":
+            return "severity-high"
+        elif severity == "medium":
+            return "severity-medium"
+        elif severity == "low":
+            return "severity-low"
+        else:
+            return "severity-info"
+    
+    def _get_confidence_class(self, confidence):
+        """
+        Retourne la classe CSS pour un niveau de confiance donné.
+        
+        Args:
+            confidence (int): Niveau de confiance (0-100)
+            
+        Returns:
+            str: Classe CSS correspondante
+        """
+        if confidence >= 80:
+            return "confidence-high"
+        elif confidence >= 50:
+            return "confidence-medium"
+        else:
+            return "confidence-low"
+    
+    def _copy_static_assets(self, assets_dir):
+        """
+        Copie les ressources statiques dans le répertoire de sortie.
+        
+        Args:
+            assets_dir (str): Répertoire de destination des ressources
+            
+        Returns:
+            bool: True si la copie a réussi, False sinon
+        """
+        try:
+            # Vérifier si le répertoire static existe
+            if not os.path.exists(self.static_dir):
+                logger.warning(f"Le répertoire static {self.static_dir} n'existe pas. Création des ressources par défaut.")
+                return self._create_default_assets(assets_dir)
+            
+            # Copier les ressources
+            for item in os.listdir(self.static_dir):
+                src = os.path.join(self.static_dir, item)
+                dst = os.path.join(assets_dir, item)
+                
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src, dst)
+            
+            logger.info(f"Ressources statiques copiées dans {assets_dir}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la copie des ressources statiques: {str(e)}")
+            return self._create_default_assets(assets_dir)
+    
+    def _create_default_assets(self, assets_dir):
+        """
+        Crée des ressources statiques par défaut.
+        
+        Args:
+            assets_dir (str): Répertoire de destination des ressources
+            
+        Returns:
+            bool: True si la création a réussi, False sinon
+        """
+        try:
+            # Créer le répertoire CSS
+            css_dir = os.path.join(assets_dir, "css")
+            os.makedirs(css_dir, exist_ok=True)
+            
+            # Créer le répertoire JS
+            js_dir = os.path.join(assets_dir, "js")
+            os.makedirs(js_dir, exist_ok=True)
+            
+            # Créer le répertoire images
+            img_dir = os.path.join(assets_dir, "img")
+            os.makedirs(img_dir, exist_ok=True)
+            
+            # CSS par défaut
+            default_css = """
+/* ForensicHunter Report CSS */
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --background-color: #f8f9fa;
+    --text-color: #333;
+    --border-color: #ddd;
+    --card-background: #fff;
+    --header-background: #2c3e50;
+    --header-text: #fff;
+    --severity-critical: #e74c3c;
+    --severity-high: #e67e22;
+    --severity-medium: #f1c40f;
+    --severity-low: #3498db;
+    --severity-info: #95a5a6;
+    --confidence-high: #27ae60;
+    --confidence-medium: #f1c40f;
+    --confidence-low: #e74c3c;
+}
+
+/* Dark theme */
+.dark-theme {
+    --primary-color: #1a1a2e;
+    --secondary-color: #16213e;
+    --accent-color: #e94560;
+    --background-color: #121212;
+    --text-color: #f0f0f0;
+    --border-color: #333;
+    --card-background: #1e1e1e;
+    --header-background: #0f3460;
+    --header-text: #f0f0f0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    background-color: var(--header-background);
+    color: var(--header-text);
+    padding: 20px 0;
+    margin-bottom: 30px;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    max-height: 60px;
+}
+
+.report-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.case-info {
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.case-info h2 {
+    margin-top: 0;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 10px;
+}
+
+.case-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.case-detail-item {
+    margin-bottom: 10px;
+}
+
+.case-detail-label {
+    font-weight: bold;
+    color: var(--secondary-color);
+}
+
+.stats-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.stat-card h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 10px;
+}
+
+.severity-chart, .type-chart {
+    height: 250px;
+    margin-top: 20px;
+}
+
+.findings-section {
+    margin-bottom: 30px;
+}
+
+.findings-section h2 {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 10px;
+}
+
+.findings-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.filter-button {
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 5px 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.filter-button:hover, .filter-button.active {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.finding-card {
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.finding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.finding-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.finding-type {
+    font-size: 14px;
+    color: var(--secondary-color);
+    margin-left: 10px;
+}
+
+.finding-badges {
+    display: flex;
+    gap: 10px;
+}
+
+.severity-badge, .confidence-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.severity-critical {
+    background-color: var(--severity-critical);
+}
+
+.severity-high {
+    background-color: var(--severity-high);
+}
+
+.severity-medium {
+    background-color: var(--severity-medium);
+    color: #333;
+}
+
+.severity-low {
+    background-color: var(--severity-low);
+}
+
+.severity-info {
+    background-color: var(--severity-info);
+}
+
+.confidence-high {
+    background-color: var(--confidence-high);
+}
+
+.confidence-medium {
+    background-color: var(--confidence-medium);
+    color: #333;
+}
+
+.confidence-low {
+    background-color: var(--confidence-low);
+}
+
+.finding-description {
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+.finding-metadata {
+    background-color: rgba(0,0,0,0.05);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.artifacts-section {
+    margin-top: 20px;
+}
+
+.artifacts-section h4 {
+    margin-top: 0;
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+.artifact-item {
+    background-color: rgba(0,0,0,0.03);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.artifact-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.artifact-source {
+    color: var(--secondary-color);
+}
+
+.artifact-preview {
+    font-family: monospace;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    padding: 10px;
+    background-color: rgba(0,0,0,0.05);
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.collapsible {
+    cursor: pointer;
+}
+
+.collapsible:after {
+    content: '\\002B';
+    font-weight: bold;
+    float: right;
+    margin-left: 5px;
+}
+
+.active:after {
+    content: "\\2212";
+}
+
+.collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease-out;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 50px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .logo {
+        margin-bottom: 15px;
+    }
+    
+    .case-details, .stats-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .finding-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .finding-badges {
+        margin-top: 10px;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        background-color: white;
+        color: black;
+    }
+    
+    .container {
+        max-width: 100%;
+        padding: 0;
+    }
+    
+    .finding-card, .case-info, .stat-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+    
+    .filter-button, .theme-toggle {
+        display: none;
+    }
+    
+    footer {
+        margin-top: 20px;
+    }
+}
+"""
+            
+            # JavaScript par défaut
+            default_js = """
+// ForensicHunter Report JavaScript
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts
+    initCharts();
+    
+    // Initialize collapsible elements
+    initCollapsible();
+    
+    // Initialize filters
+    initFilters();
+    
+    // Initialize theme toggle
+    initThemeToggle();
+});
+
+function initCharts() {
+    // Check if Chart.js is available
+    if (typeof Chart === 'undefined') {
+        console.warn('Chart.js is not available. Charts will not be rendered.');
+        return;
+    }
+    
+    // Severity chart
+    const severityCtx = document.getElementById('severityChart');
+    if (severityCtx) {
+        const severityData = JSON.parse(severityCtx.getAttribute('data-values'));
+        const severityLabels = Object.keys(severityData);
+        const severityValues = Object.values(severityData);
+        const severityColors = {
+            'critical': '#e74c3c',
+            'high': '#e67e22',
+            'medium': '#f1c40f',
+            'low': '#3498db',
+            'info': '#95a5a6'
+        };
+        
+        new Chart(severityCtx, {
+            type: 'doughnut',
+            data: {
+                labels: severityLabels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
+                datasets: [{
+                    data: severityValues,
+                    backgroundColor: severityLabels.map(label => severityColors[label.toLowerCase()] || '#95a5a6'),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Résultats par sévérité'
+                    }
+                }
+            }
+        });
+    }
+    
+    // Finding types chart
+    const typeCtx = document.getElementById('typeChart');
+    if (typeCtx) {
+        const typeData = JSON.parse(typeCtx.getAttribute('data-values'));
+        const typeLabels = Object.keys(typeData);
+        const typeValues = Object.values(typeData);
+        
+        new Chart(typeCtx, {
+            type: 'bar',
+            data: {
+                labels: typeLabels.map(label => label.replace(/_/g, ' ')),
+                datasets: [{
+                    label: 'Nombre de résultats',
+                    data: typeValues,
+                    backgroundColor: '#3498db',
+                    borderColor: '#2980b9',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Résultats par type'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function initCollapsible() {
+    const collapsibles = document.getElementsByClassName('collapsible');
+    
+    for (let i = 0; i < collapsibles.length; i++) {
+        collapsibles[i].addEventListener('click', function() {
+            this.classList.toggle('active');
+            const content = this.nextElementSibling;
+            
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+            } else {
+                content.style.maxHeight = content.scrollHeight + 'px';
+            }
+        });
+    }
+}
+
+function initFilters() {
+    const filterButtons = document.querySelectorAll('.filter-button');
+    const findingCards = document.querySelectorAll('.finding-card');
+    
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const filter = this.getAttribute('data-filter');
+            
+            // Toggle active class
+            if (filter === 'all') {
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            } else {
+                document.querySelector('[data-filter="all"]').classList.remove('active');
+                this.classList.toggle('active');
+            }
+            
+            // Apply filters
+            const activeFilters = Array.from(document.querySelectorAll('.filter-button.active')).map(btn => btn.getAttribute('data-filter'));
+            
+            findingCards.forEach(card => {
+                if (activeFilters.includes('all') || activeFilters.length === 0) {
+                    card.style.display = 'block';
+                } else {
+                    const severity = card.getAttribute('data-severity');
+                    const type = card.getAttribute('data-type');
+                    
+                    if (activeFilters.includes(severity) || activeFilters.includes(type)) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                }
+            });
+        });
+    });
+}
+
+function initThemeToggle() {
+    const themeToggle = document.getElementById('themeToggle');
+    
+    if (themeToggle) {
+        themeToggle.addEventListener('click', function() {
+            document.body.classList.toggle('dark-theme');
+            
+            const isDarkTheme = document.body.classList.contains('dark-theme');
+            themeToggle.textContent = isDarkTheme ? '☀️ Mode clair' : '🌙 Mode sombre';
+            
+            // Save preference
+            localStorage.setItem('darkTheme', isDarkTheme);
+            
+            // Reinitialize charts with new theme
+            initCharts();
+        });
+        
+        // Apply saved preference
+        const savedTheme = localStorage.getItem('darkTheme');
+        if (savedTheme === 'true') {
+            document.body.classList.add('dark-theme');
+            themeToggle.textContent = '☀️ Mode clair';
+        }
+    }
+}
+
+// Function to format JSON for display
+function formatJSON(json) {
+    if (typeof json === 'string') {
+        try {
+            json = JSON.parse(json);
+        } catch (e) {
+            return json;
+        }
+    }
+    
+    return JSON.stringify(json, null, 2);
+}
+
+// Function to toggle visibility of an element
+function toggleVisibility(id) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.style.display = element.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// Function to search in findings
+function searchFindings() {
+    const searchInput = document.getElementById('searchInput');
+    const searchTerm = searchInput.value.toLowerCase();
+    const findingCards = document.querySelectorAll('.finding-card');
+    
+    findingCards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+"""
+            
+            # Écrire les fichiers
+            with open(os.path.join(css_dir, "report.css"), "w") as f:
+                f.write(default_css)
+            
+            with open(os.path.join(js_dir, "report.js"), "w") as f:
+                f.write(default_js)
+            
+            # Créer un logo par défaut (base64)
+            default_logo = """
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60">
+  <rect width="200" height="60" fill="#2c3e50"/>
+  <text x="10" y="38" font-family="Arial" font-size="24" fill="white">ForensicHunter</text>
+</svg>
+"""
+            with open(os.path.join(img_dir, "logo.svg"), "w") as f:
+                f.write(default_logo)
+            
+            logger.info(f"Ressources statiques par défaut créées dans {assets_dir}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la création des ressources statiques par défaut: {str(e)}")
+            return False
+    
+    def _generate_html(self, report_data):
+        """
+        Génère le contenu HTML du rapport.
+        
+        Args:
+            report_data (dict): Données du rapport
+            
+        Returns:
+            str: Contenu HTML du rapport
+        """
+        try:
+            # Vérifier si un template existe
+            template_path = os.path.join(self.template_dir, "report_template.html")
+            
+            if os.path.exists(template_path):
+                # Utiliser le template existant
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template = f.read()
+                
+                # Remplacer les variables dans le template
+                html = self._replace_template_variables(template, report_data)
+                
+            else:
+                # Générer un HTML par défaut
+                html = self._generate_default_html(report_data)
+            
+            return html
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération du HTML: {str(e)}")
+            return self._generate_default_html(report_data)
+    
+    def _replace_template_variables(self, template, report_data):
+        """
+        Remplace les variables dans le template HTML.
+        
+        Args:
+            template (str): Template HTML
+            report_data (dict): Données du rapport
+            
+        Returns:
+            str: HTML avec les variables remplacées
+        """
+        # Remplacer les variables simples
+        replacements = {
+            "{{title}}": report_data["title"],
+            "{{company_name}}": report_data["company_name"],
+            "{{company_logo}}": report_data["company_logo"],
+            "{{generation_time}}": report_data["generation_time"],
+            "{{theme_class}}": "dark-theme" if report_data["theme"] == "dark" else "",
+            "{{case_id}}": report_data["case_info"]["case_id"],
+            "{{case_name}}": report_data["case_info"]["case_name"],
+            "{{analyst}}": report_data["case_info"]["analyst"],
+            "{{date}}": report_data["case_info"]["date"],
+            "{{total_findings}}": str(report_data["stats"]["total_findings"]),
+            "{{total_artifacts}}": str(report_data["stats"]["total_artifacts"]),
+            "{{severity_data}}": json.dumps(report_data["stats"]["severity_counts"]),
+            "{{type_data}}": json.dumps(report_data["stats"]["type_counts"])
+        }
+        
+        for key, value in replacements.items():
+            template = template.replace(key, value)
+        
+        # Remplacer les sections de résultats
+        findings_html = ""
+        for finding in report_data["findings"]:
+            finding_html = """
+            <div class="finding-card" data-severity="{severity}" data-type="{type}">
+                <div class="finding-header">
+                    <div>
+                        <h3 class="finding-title">{description}</h3>
+                        <span class="finding-type">{type}</span>
+                    </div>
+                    <div class="finding-badges">
+                        <span class="severity-badge {severity_class}">{severity}</span>
+                        <span class="confidence-badge {confidence_class}">Confiance: {confidence}%</span>
+                    </div>
+                </div>
+                <div class="finding-metadata">
+                    <strong>ID:</strong> {id}
+                    <strong>Timestamp:</strong> {timestamp}
+                    <strong>Métadonnées:</strong> {metadata}
+                </div>
+            """.format(
+                id=finding["id"],
+                type=finding["type"].replace("_", " ").title(),
+                description=finding["description"],
+                severity=finding["severity"].upper(),
+                severity_class=finding["severity_class"],
+                confidence=finding["confidence"],
+                confidence_class=finding["confidence_class"],
+                timestamp=finding["timestamp"],
+                metadata=json.dumps(finding["metadata"], indent=2) if finding["metadata"] else "Aucune"
+            )
+            
+            # Ajouter les artefacts associés
+            if finding["artifacts"]:
+                finding_html += """
+                <div class="artifacts-section">
+                    <h4 class="collapsible">Artefacts associés ({count})</h4>
+                    <div class="collapsible-content">
+                """.format(count=len(finding["artifacts"]))
+                
+                for artifact in finding["artifacts"]:
+                    finding_html += """
+                    <div class="artifact-item">
+                        <div class="artifact-header">
+                            <span>{type}</span>
+                            <span class="artifact-source">{source}</span>
+                        </div>
+                        <div class="artifact-preview">{preview}</div>
+                    </div>
+                    """.format(
+                        type=artifact["type"].replace("_", " ").title(),
+                        source=artifact["source"],
+                        preview=artifact.get("data_preview", "Aperçu non disponible")
+                    )
+                
+                finding_html += """
+                    </div>
+                </div>
+                """
+            
+            finding_html += "</div>"
+            findings_html += finding_html
+        
+        template = template.replace("{{findings}}", findings_html)
+        
+        return template
+    
+    def _generate_default_html(self, report_data):
+        """
+        Génère un HTML par défaut pour le rapport.
+        
+        Args:
+            report_data (dict): Données du rapport
+            
+        Returns:
+            str: HTML par défaut
+        """
+        # En-tête HTML
+        html = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ForensicHunter - Rapport d'analyse</title>
-    <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --accent-color: #e74c3c;
-            --bg-color: #f9f9f9;
-            --text-color: #333;
-            --border-color: #ddd;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background-color: var(--bg-color);
-            margin: 0;
-            padding: 0;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        header {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        h1, h2, h3, h4 {
-            color: var(--primary-color);
-            margin-top: 30px;
-        }
-        
-        .summary {
-            background-color: white;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        
-        .card {
-            background-color: white;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        
-        .card h3 {
-            margin-top: 0;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        
-        table, th, td {
-            border: 1px solid var(--border-color);
-        }
-        
-        th, td {
-            padding: 12px;
-            text-align: left;
-        }
-        
-        th {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        
-        .alert {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border: 1px solid #f5c6cb;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        
-        .warning {
-            background-color: #fff3cd;
-            color: #856404;
-            padding: 10px;
-            border: 1px solid #ffeeba;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        
-        .info {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            padding: 10px;
-            border: 1px solid #bee5eb;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 10px;
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        
-        .tab {
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-            background-color: #f1f1f1;
-            border-radius: 5px 5px 0 0;
-        }
-        
-        .tab button {
-            background-color: inherit;
-            float: left;
-            border: none;
-            outline: none;
-            cursor: pointer;
-            padding: 14px 16px;
-            transition: 0.3s;
-            font-size: 16px;
-        }
-        
-        .tab button:hover {
-            background-color: #ddd;
-        }
-        
-        .tab button.active {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-        
-        .tabcontent {
-            display: none;
-            padding: 20px;
-            border: 1px solid var(--border-color);
-            border-top: none;
-            border-radius: 0 0 5px 5px;
-            animation: fadeEffect 1s;
-        }
-        
-        @keyframes fadeEffect {
-            from {opacity: 0;}
-            to {opacity: 1;}
-        }
-        
-        .collapsible {
-            background-color: #f1f1f1;
-            color: var(--primary-color);
-            cursor: pointer;
-            padding: 18px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 16px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .active, .collapsible:hover {
-            background-color: #ddd;
-        }
-        
-        .collapsible:after {
-            content: '\\002B';
-            color: var(--primary-color);
-            font-weight: bold;
-            float: right;
-            margin-left: 5px;
-        }
-        
-        .active:after {
-            content: "\\2212";
-        }
-        
-        .content {
-            padding: 0 18px;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.2s ease-out;
-            background-color: white;
-            border-radius: 0 0 5px 5px;
-        }
-        
-        footer {
-            background-color: var(--primary-color);
-            color: white;
-            text-align: center;
-            padding: 20px;
-            margin-top: 50px;
-        }
-        
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            table {
-                display: block;
-                overflow-x: auto;
-            }
-        }
-    </style>
+    <title>{report_data["title"]}</title>
+    <link rel="stylesheet" href="assets/css/report.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="{'dark-theme' if report_data['theme'] == 'dark' else ''}">
     <header>
-        <h1>ForensicHunter - Rapport d'analyse forensique</h1>
-        <p>Généré le {{ report_date }}</p>
+        <div class="container">
+            <div class="header-content">
+                <img src="assets/img/logo.svg" alt="{report_data['company_name']}" class="logo">
+                <h1 class="report-title">{report_data["title"]}</h1>
+                <button id="themeToggle">{'☀️ Mode clair' if report_data['theme'] == 'dark' else '🌙 Mode sombre'}</button>
+            </div>
+        </div>
     </header>
     
     <div class="container">
-        <div class="summary">
-            <h2>Résumé de l'analyse</h2>
-            <p><strong>Système analysé:</strong> {{ system_info.hostname }} ({{ system_info.os }})</p>
-            <p><strong>Date de l'analyse:</strong> {{ report_date }}</p>
-            <p><strong>Durée de l'analyse:</strong> {{ execution_time }} secondes</p>
-            <p><strong>Artefacts collectés:</strong> {{ total_artifacts }}</p>
-            
-            {% if alerts %}
-            <div class="alert">
-                <h3>Alertes détectées ({{ alerts|length }})</h3>
-                <ul>
-                {% for alert in alerts %}
-                    <li>{{ alert.description }} (Score: {{ alert.score }})</li>
-                {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-        </div>
-        
-        <h2>Table des matières</h2>
-        <ul>
-            <li><a href="#system-info">Informations système</a></li>
-            {% if eventlogs_data %}
-            <li><a href="#eventlogs">Journaux d'événements</a></li>
-            {% endif %}
-            {% if registry_data %}
-            <li><a href="#registry">Registre Windows</a></li>
-            {% endif %}
-            {% if filesystem_data %}
-            <li><a href="#filesystem">Fichiers temporaires et artefacts</a></li>
-            {% endif %}
-            {% if browser_data %}
-            <li><a href="#browsers">Historique des navigateurs</a></li>
-            {% endif %}
-            {% if process_data %}
-            <li><a href="#processes">Processus en cours</a></li>
-            {% endif %}
-            {% if network_data %}
-            <li><a href="#network">Connexions réseau</a></li>
-            {% endif %}
-            {% if usb_data %}
-            <li><a href="#usb">Périphériques USB</a></li>
-            {% endif %}
-            {% if memory_data %}
-            <li><a href="#memory">Capture mémoire</a></li>
-            {% endif %}
-            {% if userdata_data %}
-            <li><a href="#userdata">Données utilisateur</a></li>
-            {% endif %}
-        </ul>
-        
-        <h2 id="system-info">Informations système</h2>
-        <div class="card">
-            <table>
-                <tr>
-                    <th>Propriété</th>
-                    <th>Valeur</th>
-                </tr>
-                <tr>
-                    <td>Nom d'hôte</td>
-                    <td>{{ system_info.hostname }}</td>
-                </tr>
-                <tr>
-                    <td>Système d'exploitation</td>
-                    <td>{{ system_info.os }}</td>
-                </tr>
-                <tr>
-                    <td>Version</td>
-                    <td>{{ system_info.version }}</td>
-                </tr>
-                <tr>
-                    <td>Architecture</td>
-                    <td>{{ system_info.architecture }}</td>
-                </tr>
-                <tr>
-                    <td>Utilisateur</td>
-                    <td>{{ system_info.user }}</td>
-                </tr>
-                <tr>
-                    <td>Date de démarrage</td>
-                    <td>{{ system_info.boot_time|format_timestamp }}</td>
-                </tr>
-            </table>
-        </div>
-        
-        {% if eventlogs_data %}
-        <h2 id="eventlogs">Journaux d'événements</h2>
-        <div class="card">
-            <h3>Résumé des journaux</h3>
-            <table>
-                <tr>
-                    <th>Journal</th>
-                    <th>Nombre d'événements</th>
-                </tr>
-                {% for log_name, events in eventlogs_data.items() %}
-                <tr>
-                    <td>{{ log_name }}</td>
-                    <td>{{ events|length if events is iterable and events is not string else 'Erreur' }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            
-            <h3>Événements importants</h3>
-            <button class="collapsible">Afficher les événements importants</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>ID</th>
-                        <th>Date</th>
-                        <th>Source</th>
-                        <th>Description</th>
-                    </tr>
-                    {% for log_name, events in eventlogs_data.items() %}
-                        {% if events is iterable and events is not string %}
-                            {% for event in events[:20] %}
-                            <tr>
-                                <td>{{ event.EventID }}</td>
-                                <td>{{ event.TimeCreated }}</td>
-                                <td>{{ event.Provider }}</td>
-                                <td>{{ event.Description }}</td>
-                            </tr>
-                            {% endfor %}
-                        {% endif %}
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if registry_data %}
-        <h2 id="registry">Registre Windows</h2>
-        <div class="card">
-            <h3>Ruches analysées</h3>
-            <table>
-                <tr>
-                    <th>Ruche</th>
-                    <th>Chemin</th>
-                    <th>Clés analysées</th>
-                </tr>
-                {% for hive_name, hive_data in registry_data.items() %}
-                <tr>
-                    <td>{{ hive_name }}</td>
-                    <td>{{ hive_data.path }}</td>
-                    <td>{{ hive_data.keys|length if hive_data.keys is defined else 'N/A' }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            
-            <h3>Clés importantes</h3>
-            <button class="collapsible">Afficher les clés importantes</button>
-            <div class="content">
-                {% for hive_name, hive_data in registry_data.items() %}
-                    {% if hive_data.keys is defined %}
-                        <h4>{{ hive_name }}</h4>
-                        {% for key_path, key_data in hive_data.keys.items() %}
-                            <div class="info">
-                                <strong>{{ key_path }}</strong>
-                                <p>Dernière modification: {{ key_data.last_modified }}</p>
-                                {% if key_data.values %}
-                                <table>
-                                    <tr>
-                                        <th>Nom</th>
-                                        <th>Type</th>
-                                        <th>Valeur</th>
-                                    </tr>
-                                    {% for name, value in key_data.values.items() %}
-                                    <tr>
-                                        <td>{{ name }}</td>
-                                        <td>{{ value.type }}</td>
-                                        <td>{{ value.data }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </table>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if filesystem_data %}
-        <h2 id="filesystem">Fichiers temporaires et artefacts</h2>
-        <div class="card">
-            <h3>Résumé des artefacts</h3>
-            <table>
-                <tr>
-                    <th>Type d'artefact</th>
-                    <th>Nombre de fichiers</th>
-                    <th>Taille totale</th>
-                </tr>
-                {% for artifact_name, artifact_data in filesystem_data.artifacts.items() %}
-                <tr>
-                    <td>{{ artifact_name }}</td>
-                    <td>{{ artifact_data.count }}</td>
-                    <td>{{ artifact_data.total_size|format_size }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            
-            <h3>Fichiers récents</h3>
-            <button class="collapsible">Afficher les fichiers récents</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>Nom</th>
-                        <th>Type</th>
-                        <th>Taille</th>
-                        <th>Date de modification</th>
-                        <th>Chemin</th>
-                    </tr>
-                    {% for artifact_name, artifact_data in filesystem_data.artifacts.items() %}
-                        {% if artifact_data.files is defined %}
-                            {% for file in artifact_data.files[:10] %}
-                            <tr>
-                                <td>{{ file.name }}</td>
-                                <td>{{ artifact_name }}</td>
-                                <td>{{ file.size|format_size }}</td>
-                                <td>{{ file.modified }}</td>
-                                <td>{{ file.path }}</td>
-                            </tr>
-                            {% endfor %}
-                        {% endif %}
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if browser_data %}
-        <h2 id="browsers">Historique des navigateurs</h2>
-        <div class="card">
-            <h3>Résumé des navigateurs</h3>
-            <table>
-                <tr>
-                    <th>Navigateur</th>
-                    <th>Entrées d'historique</th>
-                    <th>Favoris</th>
-                </tr>
-                {% for browser_name, browser_info in browser_data.items() %}
-                <tr>
-                    <td>{{ browser_name }}</td>
-                    <td>{{ browser_info.history|length if browser_info.history is defined else 'N/A' }}</td>
-                    <td>{{ browser_info.bookmarks|length if browser_info.bookmarks is defined else 'N/A' }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            
-            <h3>Sites visités récemment</h3>
-            <button class="collapsible">Afficher l'historique récent</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>Navigateur</th>
-                        <th>URL</th>
-                        <th>Titre</th>
-                        <th>Date de visite</th>
-                    </tr>
-                    {% for browser_name, browser_info in browser_data.items() %}
-                        {% if browser_info.history is defined %}
-                            {% for entry in browser_info.history[:20] %}
-                            <tr>
-                                <td>{{ browser_name }}</td>
-                                <td>{{ entry.url }}</td>
-                                <td>{{ entry.title }}</td>
-                                <td>{{ entry.last_visit_time }}</td>
-                            </tr>
-                            {% endfor %}
-                        {% endif %}
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if process_data %}
-        <h2 id="processes">Processus en cours</h2>
-        <div class="card">
-            <h3>Résumé des processus</h3>
-            <p>Nombre total de processus: {{ process_data.count }}</p>
-            
-            <button class="collapsible">Afficher les processus</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>PID</th>
-                        <th>Nom</th>
-                        <th>Utilisateur</th>
-                        <th>Chemin</th>
-                        <th>Démarré le</th>
-                        <th>CPU %</th>
-                        <th>Mémoire %</th>
-                    </tr>
-                    {% for process in process_data.processes %}
-                    <tr>
-                        <td>{{ process.pid }}</td>
-                        <td>{{ process.name }}</td>
-                        <td>{{ process.username }}</td>
-                        <td>{{ process.exe }}</td>
-                        <td>{{ process.create_time }}</td>
-                        <td>{{ process.cpu_percent }}</td>
-                        <td>{{ process.memory_percent }}</td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if network_data %}
-        <h2 id="network">Connexions réseau</h2>
-        <div class="card">
-            <h3>Résumé des connexions</h3>
-            <p>Nombre total de connexions: {{ network_data.connections_count }}</p>
-            
-            <button class="collapsible">Afficher les connexions</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>Processus</th>
-                        <th>PID</th>
-                        <th>Adresse locale</th>
-                        <th>Adresse distante</th>
-                        <th>État</th>
-                    </tr>
-                    {% for conn in network_data.connections %}
-                    <tr>
-                        <td>{{ conn.process.name if conn.process else 'N/A' }}</td>
-                        <td>{{ conn.pid }}</td>
-                        <td>{{ conn.laddr }}</td>
-                        <td>{{ conn.raddr }}</td>
-                        <td>{{ conn.status }}</td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-            
-            <h3>Interfaces réseau</h3>
-            <button class="collapsible">Afficher les interfaces</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>Interface</th>
-                        <th>Adresses</th>
-                        <th>État</th>
-                    </tr>
-                    {% for interface_name, interface_data in network_data.interfaces.items() %}
-                    <tr>
-                        <td>{{ interface_name }}</td>
-                        <td>
-                            {% for addr in interface_data.addresses %}
-                                {{ addr.address }}{% if not loop.last %}, {% endif %}
-                            {% endfor %}
-                        </td>
-                        <td>{{ 'Actif' if interface_data.stats.isup else 'Inactif' }}</td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if usb_data %}
-        <h2 id="usb">Périphériques USB</h2>
-        <div class="card">
-            <h3>Résumé des périphériques</h3>
-            <p>Nombre total de périphériques: {{ usb_data.total_count }}</p>
-            
-            <button class="collapsible">Afficher les périphériques</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>Type</th>
-                        <th>ID</th>
-                        <th>Nom</th>
-                        <th>Description</th>
-                    </tr>
-                    {% for device in usb_data.registry_devices %}
-                    <tr>
-                        <td>{{ device.type }}</td>
-                        <td>{{ device.id }}</td>
-                        <td>{{ device.properties.friendly_name if device.properties.friendly_name is defined else 'N/A' }}</td>
-                        <td>{{ device.properties.device_desc if device.properties.device_desc is defined else 'N/A' }}</td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if memory_data %}
-        <h2 id="memory">Capture mémoire</h2>
-        <div class="card">
-            <h3>Résumé de la capture</h3>
-            {% if memory_data.capture.success %}
-                <div class="success">
-                    <p>Capture mémoire réussie</p>
-                    <p>Fichier: {{ memory_data.capture.dump_path }}</p>
-                    <p>Taille: {{ memory_data.capture.size|format_size }}</p>
-                    <p>Date: {{ memory_data.capture.timestamp }}</p>
+        <section class="case-info">
+            <h2>Informations sur le cas</h2>
+            <div class="case-details">
+                <div class="case-detail-item">
+                    <span class="case-detail-label">ID du cas:</span>
+                    <span>{report_data['case_info']['case_id']}</span>
                 </div>
-            {% else %}
-                <div class="alert">
-                    <p>Échec de la capture mémoire</p>
-                    <p>Erreur: {{ memory_data.capture.error }}</p>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Nom du cas:</span>
+                    <span>{report_data['case_info']['case_name']}</span>
                 </div>
-            {% endif %}
-        </div>
-        {% endif %}
-        
-        {% if userdata_data %}
-        <h2 id="userdata">Données utilisateur</h2>
-        <div class="card">
-            <h3>Résumé des données</h3>
-            <p>Nombre total de fichiers: {{ userdata_data.total_files }}</p>
-            <p>Fichiers intéressants: {{ userdata_data.total_interesting_files }}</p>
-            
-            <h3>Fichiers intéressants</h3>
-            <button class="collapsible">Afficher les fichiers intéressants</button>
-            <div class="content">
-                <table>
-                    <tr>
-                        <th>Nom</th>
-                        <th>Type</th>
-                        <th>Taille</th>
-                        <th>Date de modification</th>
-                        <th>Chemin</th>
-                    </tr>
-                    {% for data_type, data_info in userdata_data.data.items() %}
-                        {% if data_info.files is defined %}
-                            {% for file in data_info.files %}
-                                {% if file.interesting %}
-                                <tr>
-                                    <td>{{ file.name }}</td>
-                                    <td>{{ data_type }}</td>
-                                    <td>{{ file.size|format_size }}</td>
-                                    <td>{{ file.modified }}</td>
-                                    <td>{{ file.path }}</td>
-                                </tr>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endfor %}
-                </table>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Analyste:</span>
+                    <span>{report_data['case_info']['analyst']}</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Date:</span>
+                    <span>{report_data['case_info']['date']}</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Total des résultats:</span>
+                    <span>{report_data['stats']['total_findings']}</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Total des artefacts:</span>
+                    <span>{report_data['stats']['total_artifacts']}</span>
+                </div>
             </div>
-        </div>
-        {% endif %}
+        </section>
+        
+        <section class="stats-section">
+            <div class="stat-card">
+                <h3>Résultats par sévérité</h3>
+                <div class="severity-chart">
+                    <canvas id="severityChart" data-values='{json.dumps(report_data["stats"]["severity_counts"])}'></canvas>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Résultats par type</h3>
+                <div class="type-chart">
+                    <canvas id="typeChart" data-values='{json.dumps(report_data["stats"]["type_counts"])}'></canvas>
+                </div>
+            </div>
+        </section>
+        
+        <section class="findings-section">
+            <h2>Résultats d'analyse</h2>
+            
+            <div class="findings-filters">
+                <button class="filter-button active" data-filter="all">Tous</button>
+                <button class="filter-button" data-filter="critical">Critique</button>
+                <button class="filter-button" data-filter="high">Élevé</button>
+                <button class="filter-button" data-filter="medium">Moyen</button>
+                <button class="filter-button" data-filter="low">Faible</button>
+                <button class="filter-button" data-filter="info">Info</button>
+                
+                <input type="text" id="searchInput" placeholder="Rechercher..." onkeyup="searchFindings()">
+            </div>
+"""
+        
+        # Ajouter les résultats
+        for finding in report_data["findings"]:
+            html += f"""
+            <div class="finding-card" data-severity="{finding['severity']}" data-type="{finding['type']}">
+                <div class="finding-header">
+                    <div>
+                        <h3 class="finding-title">{finding['description']}</h3>
+                        <span class="finding-type">{finding['type'].replace('_', ' ').title()}</span>
+                    </div>
+                    <div class="finding-badges">
+                        <span class="severity-badge {finding['severity_class']}">{finding['severity'].upper()}</span>
+                        <span class="confidence-badge {finding['confidence_class']}">Confiance: {finding['confidence']}%</span>
+                    </div>
+                </div>
+                <div class="finding-metadata">
+                    <strong>ID:</strong> {finding['id']}
+                    <strong>Timestamp:</strong> {finding['timestamp']}
+                    <strong>Métadonnées:</strong> {json.dumps(finding['metadata'], indent=2) if finding['metadata'] else 'Aucune'}
+                </div>
+"""
+            
+            # Ajouter les artefacts associés
+            if finding["artifacts"]:
+                html += f"""
+                <div class="artifacts-section">
+                    <h4 class="collapsible">Artefacts associés ({len(finding['artifacts'])})</h4>
+                    <div class="collapsible-content">
+"""
+                
+                for artifact in finding["artifacts"]:
+                    html += f"""
+                    <div class="artifact-item">
+                        <div class="artifact-header">
+                            <span>{artifact['type'].replace('_', ' ').title()}</span>
+                            <span class="artifact-source">{artifact['source']}</span>
+                        </div>
+                        <div class="artifact-preview">{artifact.get('data_preview', 'Aperçu non disponible')}</div>
+                    </div>
+"""
+                
+                html += """
+                    </div>
+                </div>
+"""
+            
+            html += """
+            </div>
+"""
+        
+        # Pied de page
+        html += f"""
+        </section>
     </div>
     
     <footer>
-        <p>Rapport généré par ForensicHunter v1.0.0</p>
-        <p>© 2025 ForensicHunter - Outil de forensic avancé pour Windows</p>
+        <div class="container">
+            <p>Rapport généré par ForensicHunter le {report_data['generation_time']}</p>
+            <p>&copy; {datetime.datetime.now().year} {report_data['company_name']}. Tous droits réservés.</p>
+        </div>
     </footer>
     
-    <script>
-        // Script pour les onglets
-        function openTab(evt, tabName) {
-            var i, tabcontent, tablinks;
-            tabcontent = document.getElementsByClassName("tabcontent");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
-            tablinks = document.getElementsByClassName("tablinks");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-        
-        // Script pour les éléments pliables
-        var coll = document.getElementsByClassName("collapsible");
-        var i;
-        
-        for (i = 0; i < coll.length; i++) {
-            coll[i].addEventListener("click", function() {
-                this.classList.toggle("active");
-                var content = this.nextElementSibling;
-                if (content.style.maxHeight) {
-                    content.style.maxHeight = null;
-                } else {
-                    content.style.maxHeight = content.scrollHeight + "px";
-                }
-            });
-        }
-    </script>
+    <script src="assets/js/report.js"></script>
 </body>
 </html>
 """
         
-        # Écriture du template
-        with open(template_path, 'w', encoding='utf-8') as f:
-            f.write(template_content)
-        
-        return template_path
-    
-    def generate(self, artifacts: Dict[str, Any], analysis_results: Dict[str, Any]) -> str:
-        """
-        Génère un rapport HTML à partir des artefacts collectés et des résultats d'analyse.
-        
-        Args:
-            artifacts: Dictionnaire contenant tous les artefacts collectés
-            analysis_results: Dictionnaire contenant les résultats d'analyse
-            
-        Returns:
-            Chemin vers le rapport HTML généré
-        """
-        # Vérification de l'existence du template
-        template_path = os.path.join(self.template_dir, "report.html")
-        if not os.path.exists(template_path):
-            template_path = self._create_default_template()
-        
-        # Chargement du template
-        template = self.jinja_env.get_template(os.path.basename(template_path))
-        
-        # Préparation des données pour le template
-        template_data = {
-            "report_date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "system_info": self._get_system_info(),
-            "execution_time": getattr(self.config, "execution_time", 0),
-            "total_artifacts": self._count_artifacts(artifacts),
-            "alerts": analysis_results.get("alerts", []),
-            
-            # Données des artefacts
-            "eventlogs_data": artifacts.get("EventLogCollector", {}),
-            "registry_data": artifacts.get("RegistryCollector", {}),
-            "filesystem_data": artifacts.get("FilesystemCollector", {}),
-            "browser_data": artifacts.get("BrowserHistoryCollector", {}),
-            "process_data": artifacts.get("ProcessCollector", {}),
-            "network_data": artifacts.get("NetworkCollector", {}),
-            "usb_data": artifacts.get("USBCollector", {}),
-            "memory_data": artifacts.get("MemoryCollector", {}),
-            "userdata_data": artifacts.get("UserDataCollector", {})
-        }
-        
-        # Génération du rapport HTML
-        html_content = template.render(**template_data)
-        
-        # Écriture du rapport dans un fichier
-        report_path = os.path.join(self.output_dir, f"forensichunter_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html")
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
-        return report_path
-    
-    def _get_system_info(self) -> Dict[str, Any]:
-        """
-        Récupère les informations système.
-        
-        Returns:
-            Dictionnaire contenant les informations système
-        """
-        import platform
-        import socket
-        import psutil
-        
-        system_info = {
-            "hostname": socket.gethostname(),
-            "os": platform.system(),
-            "version": platform.version(),
-            "architecture": platform.machine(),
-            "user": os.environ.get("USERNAME", "N/A"),
-            "boot_time": psutil.boot_time()
-        }
-        
-        return system_info
-    
-    def _count_artifacts(self, artifacts: Dict[str, Any]) -> int:
-        """
-        Compte le nombre total d'artefacts collectés.
-        
-        Args:
-            artifacts: Dictionnaire contenant tous les artefacts collectés
-            
-        Returns:
-            Nombre total d'artefacts
-        """
-        count = 0
-        
-        for collector_name, collector_data in artifacts.items():
-            if isinstance(collector_data, dict):
-                # Comptage spécifique selon le type de collecteur
-                if collector_name == "EventLogCollector":
-                    for log_name, events in collector_data.items():
-                        if isinstance(events, list):
-                            count += len(events)
-                
-                elif collector_name == "FilesystemCollector":
-                    if "total_files" in collector_data:
-                        count += collector_data["total_files"]
-                
-                elif collector_name == "ProcessCollector":
-                    if "count" in collector_data:
-                        count += collector_data["count"]
-                
-                elif collector_name == "NetworkCollector":
-                    if "connections_count" in collector_data:
-                        count += collector_data["connections_count"]
-                
-                elif collector_name == "USBCollector":
-                    if "total_count" in collector_data:
-                        count += collector_data["total_count"]
-                
-                elif collector_name == "UserDataCollector":
-                    if "total_files" in collector_data:
-                        count += collector_data["total_files"]
-                
-                # Pour les autres collecteurs, on essaie de compter les éléments
-                else:
-                    for key, value in collector_data.items():
-                        if isinstance(value, list):
-                            count += len(value)
-        
-        return count
+        return html

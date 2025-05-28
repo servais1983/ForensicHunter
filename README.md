@@ -1,298 +1,250 @@
 <div align="center">
-  <img src="assets/forensichunter_logo.png" alt="ForensicHunter Logo" width="200">
+  <img src="static/img/logo.svg" alt="ForensicHunter Logo" width="400">
   <h1>ForensicHunter</h1>
-  <p>L'outil de forensic Windows open source de référence</p>
-  
-  <p>
-    <a href="#fonctionnalités"><img src="https://img.shields.io/badge/Preuves-Intégrité_Garantie-blue" alt="Intégrité des preuves"></a>
-    <a href="#installation"><img src="https://img.shields.io/badge/Version-1.0.0-brightgreen" alt="Version"></a>
-    <a href="#licence"><img src="https://img.shields.io/badge/Licence-MIT-yellow" alt="Licence"></a>
-    <a href="#compatibilité"><img src="https://img.shields.io/badge/Windows-XP--11-blue" alt="Compatibilité Windows"></a>
-    <a href="#compatibilité"><img src="https://img.shields.io/badge/Windows_Server-2003--2022-blue" alt="Compatibilité Windows Server"></a>
-    <a href="#sécurité"><img src="https://img.shields.io/badge/DevSecOps-Validé-red" alt="DevSecOps"></a>
-    <a href="#multiplateforme"><img src="https://img.shields.io/badge/Multiplateforme-Windows|Linux|macOS-orange" alt="Multiplateforme"></a>
-    <a href="#documentation"><img src="https://img.shields.io/badge/Documentation-Complète-lightgrey" alt="Documentation"></a>
-  </p>
+  <p>Outil d'analyse forensique avancé pour la détection de menaces dans les fichiers VMDK, logs et autres artefacts Windows</p>
 </div>
+
+## 📋 Table des matières
+
+- [Présentation](#-présentation)
+- [Fonctionnalités](#-fonctionnalités)
+- [Installation](#-installation)
+- [Mise à jour](#-mise-à-jour)
+- [Utilisation](#-utilisation)
+- [Structure du projet](#-structure-du-projet)
+- [Dépendances](#-dépendances)
+- [Règles YARA](#-règles-yara)
+- [Génération de rapports](#-génération-de-rapports)
+- [Dépannage](#-dépannage)
+- [Licence](#-licence)
 
 ## 🔍 Présentation
 
-**ForensicHunter** est un outil professionnel de forensic pour Windows qui permet de collecter l'intégralité des preuves numériques sur un système, tout en garantissant leur intégrité pour une recevabilité en justice. Conçu avec une approche DevSecOps, il surpasse les outils existants comme Velociraptor, KAPE ou FTK Imager en termes de complétude, de rapidité et d'intelligence.
+ForensicHunter est un outil d'analyse forensique professionnel conçu pour les analystes en cybersécurité. Il permet de scanner des fichiers VMDK volumineux (jusqu'à 60GB), des logs, des fichiers CSV et d'autres artefacts Windows pour détecter des traces de malware, ransomware (notamment LockBit 3.0), phishing, backdoors, persistance d'attaquants et mouvements latéraux.
 
-ForensicHunter offre une architecture modulaire permettant l'ajout de nouveaux modules via un système de plugins, et produit des rapports exploitables automatiquement dans différents formats (HTML, JSON, CSV).
+L'application dispose d'une interface graphique intuitive basée sur PyQt5 et d'une interface en ligne de commande pour les analyses automatisées. Les résultats sont présentés dans un rapport HTML détaillé et professionnel.
 
-## ✨ Fonctionnalités
+## 🚀 Fonctionnalités
 
-### Collecte complète de preuves numériques
+- **Collecte d'artefacts Windows**
+  - Journaux d'événements (Event Logs)
+  - Fichiers de registre (Registry)
+  - Historique des navigateurs
+  - Fichiers temporaires et artefacts système
+  - Analyse de fichiers VMDK
 
-- **Journaux d'événements (Event Logs)** - Collecte et analyse de tous les journaux d'événements Windows
-- **Fichiers de registre (Registry hives)** - Extraction et analyse des ruches de registre
-- **Fichiers temporaires et artefacts d'usage** - Identification et collecte des fichiers temporaires et artefacts système
-- **Historique des navigateurs** - Analyse de l'historique Edge, Chrome et Firefox
-- **Processus et connexions réseau** - Capture des processus en cours et des connexions réseau actives
-- **Périphériques USB** - Détection et analyse des périphériques USB connectés
-- **Capture mémoire (RAM dump)** - Acquisition de la mémoire vive pour analyse
-- **Données utilisateur** - Collecte des fichiers récents, téléchargements et autres données utilisateur
+- **Détection de menaces**
+  - Malwares et ransomwares (LockBit 3.0, etc.)
+  - Traces de phishing et ingénierie sociale
+  - Backdoors et persistance
+  - Mouvements latéraux
+  - Intégration de règles YARA personnalisables
 
-### Intégrité des preuves garantie
+- **Rapports professionnels**
+  - Rapport HTML interactif unique et consolidé
+  - Système de scoring des menaces
+  - Visualisations (chronologies, graphiques)
+  - Exportation des résultats
 
-- **Calcul de hashes** - MD5, SHA-1, SHA-256 pour chaque artefact collecté
-- **Chaîne de custody documentée** - Traçabilité complète de la collecte à l'analyse
-- **Mode lecture seule** - Aucune modification des preuves originales
-- **Journal d'audit détaillé** - Enregistrement de toutes les opérations effectuées
-- **Intégration blockchain** - Stockage immuable des hashes de preuves pour garantir l'intégrité
-
-### Analyse avancée
-
-- **Détection d'anomalies** - Identification automatique des comportements suspects
-- **Scoring de preuves** - Évaluation de la pertinence des preuves collectées
-- **Intelligence artificielle** - Analyse automatisée et reconstruction d'incidents
-- **Corrélation d'événements** - Mise en relation des différents artefacts
-- **Analyse comportementale** - Détection de comportements malveillants
-- **Intégration SIEM** - Connexion avec les principaux SIEM du marché
-
-### Rapports professionnels
-
-- **Rapports HTML interactifs** - Visualisation claire et interactive des résultats
-- **Exportation JSON/CSV** - Données structurées pour analyse ultérieure
-- **Visualisations avancées** - Graphiques, chronologies et cartographies
-- **Rapports juridiques** - Formats adaptés aux procédures judiciaires
-
-## 🖥️ Interface
-
-ForensicHunter propose deux interfaces :
-
-- **Interface CLI professionnelle** - Pour une utilisation en ligne de commande
-- **Interface graphique (GUI)** - Pour une utilisation simplifiée et visuelle
-
-<div align="center">
-  <img src="assets/report_example.png" alt="Exemple de rapport ForensicHunter" width="600">
-</div>
-
-## 📋 Compatibilité
-
-ForensicHunter est compatible avec :
-
-- **Windows** : XP, Vista, 7, 8, 8.1, 10, 11
-- **Windows Server** : 2003, 2008, 2012, 2016, 2019, 2022
-- **Multiplateforme** : Modules d'analyse disponibles pour Linux et macOS
-
-## 🔒 Sécurité (DevSecOps)
-
-ForensicHunter a été développé selon les principes DevSecOps :
-
-- **Validation stricte des entrées** - Protection contre les injections
-- **Gestion sécurisée des privilèges** - Principe du moindre privilège
-- **Chiffrement des données sensibles** - Protection des informations confidentielles
-- **Protection contre les élévations de privilèges** - Contrôle strict des permissions
-- **Vérification d'intégrité** - Contrôle de l'intégrité du code et des binaires
-- **Sandboxing** - Isolation des opérations à risque
-
-Un audit de sécurité complet a été réalisé et est disponible dans `docs/security_audit.md`.
-
-## 🚀 Installation
+## 💻 Installation
 
 ### Prérequis
 
-- Windows 7 ou supérieur (Windows 10/11 recommandé)
+- Windows 10/11
 - Python 3.8 ou supérieur
-- 4 Go de RAM minimum (8 Go recommandés)
-- 1 Go d'espace disque disponible
+- Droits administrateur recommandés
 
-### Installation automatique (Recommandée)
+### Installation automatique
 
-1. Téléchargez la dernière version de ForensicHunter
+1. Clonez le dépôt GitHub :
+   ```
+   git clone https://github.com/servais1983/ForensicHunter.git
+   cd ForensicHunter
+   ```
+
 2. Exécutez le script d'installation :
+   ```
+   install.bat
+   ```
 
-```batch
-install.bat
-```
+3. Le script va :
+   - Vérifier l'installation Python
+   - Créer un environnement virtuel
+   - Installer les dépendances requises
+   - Configurer les lanceurs
 
-Ce script va :
-- Vérifier votre installation Python
-- Créer un environnement virtuel Python
-- Installer toutes les dépendances nécessaires
-- Créer un lanceur `forensichunter.bat` pour exécuter l'application
+### Installation manuelle
 
-### Installation manuelle (Avancée)
+Si vous rencontrez des problèmes avec l'installation automatique :
 
-1. Clonez le dépôt :
+1. Créez un environnement virtuel :
+   ```
+   python -m venv venv
+   ```
 
-```bash
-git clone https://github.com/servais1983/ForensicHunter.git
-```
+2. Activez l'environnement virtuel :
+   ```
+   venv\Scripts\activate
+   ```
 
-2. Créez un environnement virtuel et installez les dépendances :
+3. Installez les dépendances :
+   ```
+   pip install -r requirements.txt
+   ```
 
-```bash
-cd ForensicHunter
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-```
+4. Créez les lanceurs manuellement :
+   ```
+   echo @echo off > forensichunter.bat
+   echo call venv\Scripts\activate.bat >> forensichunter.bat
+   echo set PYTHONPATH=%%CD%% >> forensichunter.bat
+   echo python src\forensichunter.py %%* >> forensichunter.bat
+   echo deactivate >> forensichunter.bat
 
-3. Créez manuellement le lanceur `forensichunter.bat` avec le contenu suivant :
+   echo @echo off > forensichunter_gui.bat
+   echo call venv\Scripts\activate.bat >> forensichunter_gui.bat
+   echo set PYTHONPATH=%%CD%% >> forensichunter_gui.bat
+   echo python src\gui\main_gui.py >> forensichunter_gui.bat
+   echo deactivate >> forensichunter_gui.bat
+   ```
 
-```batch
-@echo off
-call venv\Scripts\activate.bat
-set PYTHONPATH=%CD%
-python src\forensichunter.py %*
-deactivate
-```
+## 🔄 Mise à jour
 
-## 🔧 Utilisation
+Pour mettre à jour ForensicHunter à la dernière version :
 
-### ⚠️ IMPORTANT : Toujours utiliser le lanceur .bat sous Windows
+1. Ouvrez une invite de commande dans le répertoire du projet
+2. Mettez à jour le dépôt :
+   ```
+   git pull origin main
+   ```
+3. Supprimez les anciens lanceurs s'ils existent :
+   ```
+   del forensichunter.bat
+   del forensichunter_gui.bat
+   ```
+4. Réexécutez le script d'installation :
+   ```
+   install.bat
+   ```
 
-Pour éviter les problèmes d'importation de modules, vous devez **toujours** utiliser le lanceur `forensichunter.bat` généré lors de l'installation pour exécuter l'application. Ce lanceur configure correctement l'environnement Python et les chemins d'importation.
-
-### Collecte complète
-
-```batch
-forensichunter.bat --full-scan --output C:\ForensicHunter\Results
-```
-
-### Collecte ciblée
-
-```batch
-forensichunter.bat --collect event_logs registry browser_history --output C:\ForensicHunter\Results
-```
-
-### Aide et options disponibles
-
-```batch
-forensichunter.bat --help
-```
+## 📊 Utilisation
 
 ### Interface graphique
 
-Pour lancer l'interface graphique, utilisez :
+Pour lancer l'interface graphique :
 
-```batch
-forensichunter.bat --gui
+```
+forensichunter_gui.bat
 ```
 
-Ou créez un raccourci vers :
+L'interface vous permettra de :
+- Sélectionner les fichiers à analyser (VMDK, logs, CSV)
+- Configurer les options d'analyse
+- Lancer l'analyse
+- Visualiser les résultats
+- Générer des rapports
 
-```batch
-venv\Scripts\python.exe src\gui\main_gui.py
+### Interface en ligne de commande
+
+Pour lancer l'analyse en ligne de commande :
+
+```
+forensichunter.bat [options]
 ```
 
-### Après une mise à jour du dépôt
+Options disponibles :
+- `--help` : Affiche l'aide
+- `--scan <chemin>` : Spécifie le chemin du fichier ou dossier à analyser
+- `--output <dossier>` : Spécifie le dossier de sortie pour les résultats
+- `--full-scan` : Active l'analyse complète (plus lente mais plus précise)
+- `--quick-scan` : Active l'analyse rapide
+- `--report-format <format>` : Format du rapport (html, json, csv)
+- `--yara-rules <dossier>` : Spécifie un dossier de règles YARA personnalisées
 
-Si vous mettez à jour le dépôt avec `git pull`, vous devez régénérer le lanceur :
+Exemple d'utilisation :
+```
+forensichunter.bat --scan C:\Evidence\disk.vmdk --output C:\Results --full-scan --report-format html
+```
 
-1. Supprimez l'ancien fichier `forensichunter.bat`
-2. Exécutez à nouveau `install.bat` pour générer un nouveau lanceur
-
-### Résolution des problèmes courants
-
-Si vous rencontrez l'erreur `ModuleNotFoundError: No module named 'src.utils.logger'` :
-- N'exécutez pas directement `python src/forensichunter.py`
-- Utilisez toujours le lanceur `forensichunter.bat` qui configure correctement le PYTHONPATH
-
-## 🧩 Architecture modulaire
-
-ForensicHunter est construit sur une architecture modulaire qui permet d'étendre facilement ses fonctionnalités :
+## 📁 Structure du projet
 
 ```
 ForensicHunter/
-├── src/                    # Code source principal
-│   ├── collectors/         # Modules de collecte d'artefacts
-│   ├── analyzers/          # Modules d'analyse et de détection
-│   │   ├── memory/         # Analyse de mémoire avec Volatility
-│   │   ├── virustotal/     # Intégration VirusTotal
-│   │   ├── ai/             # Analyse par intelligence artificielle
+├── docs/                   # Documentation
+├── rules/                  # Règles YARA
+├── src/                    # Code source
+│   ├── collectors/         # Collecteurs d'artefacts
+│   ├── analyzers/          # Analyseurs de menaces
 │   ├── reporters/          # Générateurs de rapports
+│   ├── utils/              # Utilitaires
 │   ├── gui/                # Interface graphique
-│   ├── cloud/              # Analyse des environnements cloud
-│   ├── siem/               # Intégration SIEM
-│   ├── multiplatform/      # Support multiplateforme
-│   ├── behavioral/         # Analyse comportementale
-│   ├── remote/             # Analyse à distance
-│   ├── blockchain/         # Intégration blockchain
-│   ├── plugins/            # Système de plugins
-│   └── utils/              # Utilitaires communs
-│       ├── integrity/      # Outils d'intégrité des preuves
-│       └── security/       # Outils de sécurité
-├── rules/                  # Règles YARA et IOCs
-├── templates/              # Templates pour les rapports
+│   └── forensichunter.py   # Point d'entrée principal
 ├── static/                 # Ressources statiques
-├── docs/                   # Documentation complète
-├── install.bat             # Script d'installation Windows
+├── templates/              # Templates de rapports
+├── install.bat             # Script d'installation
 ├── requirements.txt        # Dépendances Python
-└── README.md               # Documentation principale
+└── README.md               # Ce fichier
 ```
 
-## 📊 Comparaison avec les outils existants
+## 📦 Dépendances
 
-| Fonctionnalité | ForensicHunter | Velociraptor | KAPE | FTK Imager |
-|----------------|----------------|--------------|------|------------|
-| Collecte complète | ✅ | ✅ | ⚠️ | ⚠️ |
-| Intégrité des preuves | ✅ | ⚠️ | ⚠️ | ✅ |
-| Analyse IA | ✅ | ❌ | ❌ | ❌ |
-| Détection d'anomalies | ✅ | ⚠️ | ❌ | ❌ |
-| Multiplateforme | ✅ | ✅ | ❌ | ⚠️ |
-| Analyse à distance | ✅ | ✅ | ❌ | ❌ |
-| Intégration blockchain | ✅ | ❌ | ❌ | ❌ |
-| Interface graphique | ✅ | ✅ | ❌ | ✅ |
-| Open source | ✅ | ✅ | ❌ | ❌ |
-| Compatibilité Windows | XP-11 | 7-11 | 7-10 | XP-10 |
+Les principales dépendances sont :
 
-## 🗺️ Roadmap
+- **PyQt5** : Interface graphique
+- **yara-python** : Moteur de règles YARA
+- **python-registry** : Analyse du registre Windows
+- **python-evtx** : Analyse des journaux d'événements Windows
+- **pytsk3** : Analyse des systèmes de fichiers
+- **python-magic** : Détection des types de fichiers
+- **matplotlib** et **seaborn** : Visualisation des données
+- **jinja2** : Génération de rapports HTML
 
-### Phase 1 (Complétée)
-- ✅ Collecte complète des preuves numériques
-- ✅ Intégrité des preuves garantie
-- ✅ Architecture modulaire avec système de plugins
-- ✅ Rapports exploitables (HTML, JSON, CSV)
-- ✅ Interface CLI professionnelle
+Toutes les dépendances sont automatiquement installées par le script d'installation.
 
-### Phase 2 (Complétée)
-- ✅ Interface graphique (GUI)
-- ✅ Analyse des environnements cloud (AWS, Azure, GCP)
-- ✅ Intégration SIEM (Splunk, ELK, QRadar)
-- ✅ Support multiplateforme (Windows, Linux, macOS)
-- ✅ Analyse comportementale avancée
+## 🛡️ Règles YARA
 
-### Phase 3 (Complétée)
-- ✅ Intelligence artificielle pour l'analyse
-- ✅ Analyse à distance
-- ✅ Intégration blockchain pour l'intégrité des preuves
-- ✅ Corrélation multi-sources
-- ✅ Visualisations avancées
+ForensicHunter utilise des règles YARA pour la détection de menaces. Les règles par défaut sont situées dans le dossier `rules/` et comprennent :
 
-### Phase 4 (Prochaine)
-- 🔄 Analyse temps réel et surveillance continue
-- 🔄 Détection de menaces avancées (APT)
-- 🔄 Intégration avec les solutions EDR
-- 🔄 Analyse forensique de conteneurs et environnements virtualisés
-- 🔄 Marketplace de plugins communautaires
+- Détection de ransomwares (LockBit 3.0, Ryuk, WannaCry, etc.)
+- Détection de backdoors et webshells
+- Détection de malwares génériques
+- Détection de scripts PowerShell malveillants
 
-## 📚 Documentation
+Vous pouvez ajouter vos propres règles YARA en les plaçant dans le dossier `rules/` ou en spécifiant un dossier personnalisé avec l'option `--yara-rules`.
 
-Une documentation complète est disponible dans le dossier `docs/` :
+## 📝 Génération de rapports
 
-- [Manuel utilisateur](docs/user_manual.md)
-- [Guide du développeur](docs/developer_guide.md)
-- [Audit de sécurité](docs/security_audit.md)
+ForensicHunter génère des rapports HTML détaillés et professionnels qui incluent :
 
-## 🤝 Contribution
+- Résumé de l'analyse
+- Statistiques sur les menaces détectées
+- Liste des menaces classées par sévérité
+- Détails des artefacts associés à chaque menace
+- Visualisations graphiques
+- Recommandations de remédiation
 
-Les contributions sont les bienvenues ! Consultez le [guide de contribution](docs/CONTRIBUTING.md) pour plus d'informations.
+Les rapports sont générés dans le dossier spécifié par l'option `--output` ou dans le dossier par défaut `results/`.
+
+## 🔧 Dépannage
+
+### Problèmes d'installation
+
+**Erreur : ModuleNotFoundError: No module named 'PyQt5'**
+- Solution : Supprimez le dossier venv et réexécutez install.bat
+- Alternative : Installez PyQt5 manuellement : `pip install PyQt5`
+
+**Erreur : Permission denied lors de la création de l'environnement virtuel**
+- Solution : Fermez toutes les instances de ligne de commande qui utilisent l'environnement virtuel
+- Alternative : Supprimez le dossier venv et réexécutez install.bat en tant qu'administrateur
+
+### Problèmes d'exécution
+
+**Erreur : ModuleNotFoundError: No module named 'src.utils.logger'**
+- Solution : Assurez-vous d'utiliser les lanceurs forensichunter.bat ou forensichunter_gui.bat
+- Alternative : Définissez manuellement PYTHONPATH : `set PYTHONPATH=%CD%`
+
+**Erreur : DLL load failed lors du lancement de l'interface graphique**
+- Solution : Réinstallez PyQt5 : `pip install --force-reinstall PyQt5`
 
 ## 📄 Licence
 
-Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
-## 📞 Contact
-
-Pour toute question ou suggestion, n'hésitez pas à ouvrir une issue sur GitHub.
-
----
-
-<div align="center">
-  <p>ForensicHunter - L'outil de forensic Windows open source de référence</p>
-  <p>Développé avec ❤️ pour la communauté forensique</p>
-</div>
+ForensicHunter est distribué sous licence MIT. Voir le fichier LICENSE pour plus de détails.
