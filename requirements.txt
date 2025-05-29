@@ -5,7 +5,14 @@ click>=8.1.3
 rich>=13.3.5
 tqdm>=4.65.0
 psutil>=5.9.5
+
+# YARA - Analyseur de règles avec fallback pour Windows
 yara-python>=4.3.0
+
+# Alternative YARA pour les environnements problématiques
+# Décommentez si yara-python pose des problèmes :
+# yara-python==4.2.3
+
 python-registry>=1.3.1
 volatility3>=2.4.1
 pywin32>=306; platform_system == "Windows"
@@ -28,7 +35,7 @@ pyinstaller>=5.10.1; platform_system == "Windows"
 PyQt5>=5.15.9; platform_system == "Windows"
 
 # Dépendances pour l'analyse de navigateurs
-browsercookie>=0.7.7
+browserhistory>=0.7.7
 pycryptodome>=3.18.0
 
 # Dépendances pour l'analyse mémoire
@@ -39,6 +46,15 @@ construct>=2.10.68
 scikit-learn>=1.2.2
 scipy>=1.10.1
 
+# Dépendances système Windows supplémentaires
+pywin32-ctypes>=0.2.0; platform_system == "Windows"
+
 # Dépendances pour les tests
 pytest>=7.3.1
 pytest-cov>=4.1.0
+
+# Dépendances de développement (optionnelles)
+# Décommentez pour le développement :
+# black>=23.3.0
+# flake8>=6.0.0
+# mypy>=1.3.0
