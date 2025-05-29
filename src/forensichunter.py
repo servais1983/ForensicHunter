@@ -127,19 +127,20 @@ def main():
             print("[!] Vérifiez que PyQt5 est installé: pip install PyQt5")
             return 1
     
+    # Création du répertoire de sortie
+    # Do this early so logs can go into it.
+    output_dir = create_output_dir(args.output)
+
     # Configuration du logger
     log_level = logging.DEBUG if args.debug else logging.INFO
-    logger = setup_logger(log_level)
+    logger = setup_logger(log_dir=output_dir, level=log_level) # Pass output_dir here
     logger.info(f"ForensicHunter v{__version__} démarré à {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Les résultats seront enregistrés dans: {output_dir}") # Log this after logger is set up with file handler
     
     # Vérification des privilèges administrateur
     if not check_admin_privileges():
         logger.warning("ForensicHunter n'est pas exécuté avec des privilèges administrateur.")
         logger.warning("Certaines fonctionnalités de collecte peuvent être limitées.")
-    
-    # Création du répertoire de sortie
-    output_dir = create_output_dir(args.output)
-    logger.info(f"Les résultats seront enregistrés dans: {output_dir}")
     
     # Initialisation de la configuration
     config = Config(args)
