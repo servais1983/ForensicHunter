@@ -32,13 +32,14 @@ class EventLogCollector(BaseCollector):
         """
         super().__init__(config)
         self.log_types = self.config.get("log_types", ["Application", "System", "Security"])
-        self.max_events = self.config.get("max_events", 100)  # Réduire pour éviter les erreurs
+        self.max_events = self.config.get("max_events", 50)  # Réduit pour éviter les erreurs d'encodage
         self.start_time = self.config.get("start_time", None)
         self.end_time = self.config.get("end_time", None)
         self.event_ids = self.config.get("event_ids", [])
         self.use_powershell = self.config.get("use_powershell", True)
         self.use_wevtutil = self.config.get("use_wevtutil", False)  # Désactivé par défaut
         self.use_python_win32 = self.config.get("use_python_win32", True)
+        self.timeout = self.config.get("timeout", 45)  # Timeout augmenté
     
     def get_name(self):
         """
@@ -73,17 +74,94 @@ class EventLogCollector(BaseCollector):
             return self.artifacts
         
         # Essayer différentes méthodes de collecte
-        if self.use_python_win32 and self._collect_with_win32():
-            logger.info("Collecte avec win32 réussie")
-        elif self.use_powershell and self._collect_with_powershell():
-            logger.info("Collecte avec PowerShell réussie")
-        elif self.use_wevtutil and self._collect_with_wevtutil():
-            logger.info("Collecte avec wevtutil réussie")
-        else:
+        success = False
+        
+        if self.use_python_win32:
+            try:
+                if self._collect_with_win32():
+                    logger.info("Collecte avec win32 réussie")
+                    success = True
+            except Exception as e:
+                logger.error(f"Erreur lors de la collecte win32: {str(e)}")
+        
+        if not success and self.use_powershell:
+            try:
+                if self._collect_with_powershell():
+                    logger.info("Collecte avec PowerShell réussie")
+                    success = True
+            except Exception as e:
+                logger.error(f"Erreur lors de la collecte PowerShell: {str(e)}")
+        
+        if not success and self.use_wevtutil:
+            try:
+                if self._collect_with_wevtutil():
+                    logger.info("Collecte avec wevtutil réussie")
+                    success = True
+            except Exception as e:
+                logger.error(f"Erreur lors de la collecte wevtutil: {str(e)}")
+        
+        if not success:
             logger.warning("Toutes les méthodes de collecte ont échoué, collecte basique des événements")
             self._collect_basic_events()
         
         return self.artifacts
+    
+    def _safe_subprocess_run(self, cmd, timeout=None):
+        """
+        Exécute une commande subprocess avec gestion d'encodage sécurisée.
+        
+        Args:
+            cmd (list): Commande à exécuter
+            timeout (int, optional): Timeout en secondes
+            
+        Returns:
+            tuple: (stdout, stderr, returncode)
+        """
+        if timeout is None:
+            timeout = self.timeout
+            
+        try:
+            # Essayer avec UTF-8 d'abord
+            process = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                text=True,
+                encoding='utf-8',
+                errors='replace'  # Remplacer les caractères invalides
+            )
+            
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+                return stdout, stderr, process.returncode
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                logger.error(f"Timeout lors de l'exécution de la commande: {' '.join(cmd[:5])}")
+                return "", f"Timeout après {timeout} secondes", 1
+                
+        except UnicodeDecodeError:
+            # Fallback avec encodage système
+            try:
+                process = subprocess.Popen(
+                    cmd, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE, 
+                    text=True,
+                    encoding='cp1252',  # Encodage Windows par défaut
+                    errors='replace'
+                )
+                
+                stdout, stderr = process.communicate(timeout=timeout)
+                return stdout, stderr, process.returncode
+                
+            except Exception as e:
+                logger.error(f"Erreur d'encodage même avec fallback: {str(e)}")
+                return "", str(e), 1
+        
+        except Exception as e:
+            logger.error(f"Erreur lors de l'exécution de la commande: {str(e)}")
+            return "", str(e), 1
     
     def _collect_with_powershell(self):
         """
@@ -96,84 +174,93 @@ class EventLogCollector(BaseCollector):
             for log_type in self.log_types:
                 logger.info(f"Collecte des événements {log_type} avec PowerShell...")
                 
-                # Construire la commande PowerShell simplifiée
+                # Construire la commande PowerShell simplifiée et robuste
                 cmd = [
-                    "powershell",
+                    "powershell.exe",
                     "-NoProfile",
+                    "-ExecutionPolicy", "Bypass",
                     "-Command",
-                    f"Get-WinEvent -LogName '{log_type}' -MaxEvents {self.max_events} -ErrorAction SilentlyContinue | Select-Object Id, TimeCreated, ProviderName, LevelDisplayName, Message | ConvertTo-Json -Depth 2"
+                    f"""
+                    try {{
+                        $events = Get-WinEvent -LogName '{log_type}' -MaxEvents {self.max_events} -ErrorAction SilentlyContinue | 
+                        Select-Object -First {self.max_events} Id, TimeCreated, ProviderName, LevelDisplayName, 
+                        @{{Name='Message'; Expression={{if($_.Message.Length -gt 500){{$_.Message.Substring(0,500) + '...'}} else {{$_.Message}}}}}}
+                        
+                        if ($events) {{
+                            $events | ConvertTo-Json -Depth 2 -Compress
+                        }} else {{
+                            '[]'
+                        }}
+                    }} catch {{
+                        Write-Error "Erreur lors de la collecte: $($_.Exception.Message)"
+                        '[]'
+                    }}
+                    """
                 ]
                 
                 # Exécuter la commande avec gestion d'encodage
+                stdout, stderr, returncode = self._safe_subprocess_run(cmd, timeout=self.timeout)
+                
+                if returncode != 0:
+                    logger.error(f"Erreur lors de l'exécution de PowerShell pour {log_type}: {stderr}")
+                    continue
+                
+                if not stdout or stdout.strip() == "" or stdout.strip() == "[]":
+                    logger.warning(f"Aucun événement trouvé pour {log_type}")
+                    continue
+                
+                # Traiter les résultats JSON
                 try:
-                    process = subprocess.Popen(
-                        cmd, 
-                        stdout=subprocess.PIPE, 
-                        stderr=subprocess.PIPE, 
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace'  # Remplacer les caractères non-UTF-8
-                    )
-                    stdout, stderr = process.communicate(timeout=30)  # Timeout de 30 secondes
-                    
-                    if process.returncode != 0:
-                        logger.error(f"Erreur lors de l'exécution de PowerShell pour {log_type}: {stderr}")
+                    # Nettoyer la sortie JSON
+                    json_data = stdout.strip()
+                    if not json_data:
                         continue
                     
-                    if not stdout or stdout.strip() == "":
-                        logger.warning(f"Aucun événement trouvé pour {log_type}")
-                        continue
+                    events = json.loads(json_data)
                     
-                    # Traiter les résultats
-                    try:
-                        events = json.loads(stdout)
-                        
-                        # Si un seul événement est retourné, le convertir en liste
-                        if not isinstance(events, list):
-                            events = [events] if events else []
-                        
-                        for event in events:
-                            if not isinstance(event, dict):
-                                continue
-                                
-                            # Extraire les informations pertinentes
-                            event_id = event.get("Id", 0)
-                            time_created = event.get("TimeCreated", "")
-                            provider_name = event.get("ProviderName", "")
-                            level = event.get("LevelDisplayName", "")
-                            message = event.get("Message", "")
+                    # Si un seul événement est retourné, le convertir en liste
+                    if not isinstance(events, list):
+                        events = [events] if events else []
+                    
+                    for event in events:
+                        if not isinstance(event, dict):
+                            continue
                             
-                            # Créer un artefact
-                            metadata = {
-                                "event_id": str(event_id),
-                                "time_created": str(time_created),
-                                "provider_name": str(provider_name),
-                                "level": str(level),
-                                "log_type": log_type
-                            }
-                            
-                            self.add_artifact(
-                                artifact_type="event_log",
-                                source=f"powershell_{log_type}",
-                                data={
-                                    "message": str(message),
-                                    "event_data": event
-                                },
-                                metadata=metadata
-                            )
+                        # Extraire les informations pertinentes avec validation
+                        event_id = self._safe_get(event, "Id", "0")
+                        time_created = self._safe_get(event, "TimeCreated", "")
+                        provider_name = self._safe_get(event, "ProviderName", "")
+                        level = self._safe_get(event, "LevelDisplayName", "")
+                        message = self._safe_get(event, "Message", "")
                         
-                        logger.info(f"{len(events)} événements collectés pour {log_type}")
+                        # Créer un artefact
+                        metadata = {
+                            "event_id": str(event_id),
+                            "time_created": str(time_created),
+                            "provider_name": str(provider_name),
+                            "level": str(level),
+                            "log_type": log_type,
+                            "collection_method": "powershell"
+                        }
                         
-                    except json.JSONDecodeError as e:
-                        logger.error(f"Erreur lors du décodage JSON pour {log_type}: {str(e)}")
-                        continue
-                        
-                except subprocess.TimeoutExpired:
-                    logger.error(f"Timeout lors de la collecte PowerShell pour {log_type}")
-                    process.kill()
+                        self.add_artifact(
+                            artifact_type="event_log",
+                            source=f"powershell_{log_type}",
+                            data={
+                                "message": str(message),
+                                "event_data": event
+                            },
+                            metadata=metadata
+                        )
+                    
+                    logger.info(f"{len(events)} événements collectés pour {log_type}")
+                    
+                except json.JSONDecodeError as e:
+                    logger.error(f"Erreur lors du décodage JSON pour {log_type}: {str(e)}")
+                    logger.debug(f"Données JSON problématiques: {stdout[:200]}...")
                     continue
                 except Exception as e:
-                    logger.error(f"Erreur lors de l'exécution PowerShell pour {log_type}: {str(e)}")
+                    logger.error(f"Erreur lors du traitement des événements pour {log_type}: {str(e)}")
                     continue
             
             return len(self.artifacts) > 0
@@ -181,6 +268,24 @@ class EventLogCollector(BaseCollector):
         except Exception as e:
             logger.error(f"Erreur lors de la collecte avec PowerShell: {str(e)}")
             return False
+    
+    def _safe_get(self, dictionary, key, default=""):
+        """
+        Obtient une valeur de dictionnaire de manière sécurisée.
+        
+        Args:
+            dictionary (dict): Dictionnaire source
+            key (str): Clé à rechercher
+            default: Valeur par défaut
+            
+        Returns:
+            Valeur trouvée ou valeur par défaut
+        """
+        try:
+            value = dictionary.get(key, default)
+            return value if value is not None else default
+        except Exception:
+            return default
     
     def _collect_with_wevtutil(self):
         """
@@ -193,46 +298,29 @@ class EventLogCollector(BaseCollector):
             for log_type in self.log_types:
                 logger.info(f"Collecte des événements {log_type} avec wevtutil...")
                 
-                # Construire la commande wevtutil pour lister les événements récents
+                # Construire la commande wevtutil corrigée (sans --count qui n'existe pas)
                 cmd = [
-                    "wevtutil",
+                    "wevtutil.exe",
                     "qe",
                     log_type,
-                    "/c:{}".format(self.max_events),
-                    "/rd:true",
-                    "/f:text"
+                    f"/c:{self.max_events}",  # Format correct pour le nombre d'événements
+                    "/rd:true",  # Lecture en ordre inverse (plus récents d'abord)
+                    "/f:text"   # Format texte
                 ]
                 
                 # Exécuter la commande
-                try:
-                    process = subprocess.Popen(
-                        cmd, 
-                        stdout=subprocess.PIPE, 
-                        stderr=subprocess.PIPE, 
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace'
-                    )
-                    stdout, stderr = process.communicate(timeout=30)
-                    
-                    if process.returncode != 0:
-                        logger.error(f"Erreur lors de l'exécution de wevtutil pour {log_type}: {stderr}")
-                        continue
-                    
-                    if stdout:
-                        # Parser la sortie texte de wevtutil
-                        events = self._parse_wevtutil_output(stdout, log_type)
-                        logger.info(f"{len(events)} événements collectés pour {log_type}")
-                    else:
-                        logger.warning(f"Aucun événement trouvé pour {log_type}")
-                    
-                except subprocess.TimeoutExpired:
-                    logger.error(f"Timeout lors de la collecte wevtutil pour {log_type}")
-                    process.kill()
+                stdout, stderr, returncode = self._safe_subprocess_run(cmd, timeout=self.timeout)
+                
+                if returncode != 0:
+                    logger.error(f"Erreur lors de l'exécution de wevtutil pour {log_type}: {stderr}")
                     continue
-                except Exception as e:
-                    logger.error(f"Erreur lors de l'exécution wevtutil pour {log_type}: {str(e)}")
-                    continue
+                
+                if stdout:
+                    # Parser la sortie texte de wevtutil
+                    events = self._parse_wevtutil_output(stdout, log_type)
+                    logger.info(f"{len(events)} événements collectés pour {log_type}")
+                else:
+                    logger.warning(f"Aucun événement trouvé pour {log_type}")
             
             return len(self.artifacts) > 0
             
@@ -254,59 +342,63 @@ class EventLogCollector(BaseCollector):
         events = []
         current_event = {}
         
-        for line in output.split('\n'):
-            line = line.strip()
-            if not line:
-                if current_event:
-                    # Créer un artefact pour l'événement actuel
-                    metadata = {
-                        "event_id": current_event.get("Event ID", ""),
-                        "time_created": current_event.get("Date", ""),
-                        "provider_name": current_event.get("Source", ""),
-                        "level": current_event.get("Level", ""),
-                        "log_type": log_type
-                    }
-                    
-                    self.add_artifact(
-                        artifact_type="event_log",
-                        source=f"wevtutil_{log_type}",
-                        data={
-                            "message": current_event.get("Description", ""),
-                            "event_data": current_event
-                        },
-                        metadata=metadata
-                    )
-                    
-                    events.append(current_event)
-                    current_event = {}
-            else:
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    current_event[key.strip()] = value.strip()
+        try:
+            for line in output.split('\n'):
+                line = line.strip()
+                if not line:
+                    if current_event:
+                        # Créer un artefact pour l'événement actuel
+                        self._create_wevtutil_artifact(current_event, log_type)
+                        events.append(current_event)
+                        current_event = {}
+                else:
+                    if ':' in line:
+                        try:
+                            key, value = line.split(':', 1)
+                            current_event[key.strip()] = value.strip()
+                        except ValueError:
+                            # Ligne sans séparateur valide, ignorer
+                            continue
+            
+            # Traiter le dernier événement
+            if current_event:
+                self._create_wevtutil_artifact(current_event, log_type)
+                events.append(current_event)
         
-        # Traiter le dernier événement
-        if current_event:
+        except Exception as e:
+            logger.error(f"Erreur lors du parsing wevtutil: {str(e)}")
+        
+        return events
+    
+    def _create_wevtutil_artifact(self, event_data, log_type):
+        """
+        Crée un artefact à partir des données wevtutil.
+        
+        Args:
+            event_data (dict): Données de l'événement
+            log_type (str): Type de journal
+        """
+        try:
             metadata = {
-                "event_id": current_event.get("Event ID", ""),
-                "time_created": current_event.get("Date", ""),
-                "provider_name": current_event.get("Source", ""),
-                "level": current_event.get("Level", ""),
-                "log_type": log_type
+                "event_id": event_data.get("Event ID", ""),
+                "time_created": event_data.get("Date", ""),
+                "provider_name": event_data.get("Source", ""),
+                "level": event_data.get("Level", ""),
+                "log_type": log_type,
+                "collection_method": "wevtutil"
             }
             
             self.add_artifact(
                 artifact_type="event_log",
                 source=f"wevtutil_{log_type}",
                 data={
-                    "message": current_event.get("Description", ""),
-                    "event_data": current_event
+                    "message": event_data.get("Description", ""),
+                    "event_data": event_data
                 },
                 metadata=metadata
             )
-            
-            events.append(current_event)
-        
-        return events
+        except Exception as e:
+            logger.error(f"Erreur lors de la création d'artefact wevtutil: {str(e)}")
     
     def _collect_with_win32(self):
         """
@@ -354,51 +446,59 @@ class EventLogCollector(BaseCollector):
                     
                     # Traiter les événements
                     for event in events:
-                        # Extraire les informations pertinentes
-                        event_id = event.EventID & 0xFFFF  # Masquer les bits de poids fort
-                        time_generated = event.TimeGenerated.Format()
-                        source_name = event.SourceName
-                        event_type = event.EventType
-                        
-                        # Convertir le type d'événement en niveau
-                        level_map = {
-                            win32con.EVENTLOG_ERROR_TYPE: "Error",
-                            win32con.EVENTLOG_WARNING_TYPE: "Warning",
-                            win32con.EVENTLOG_INFORMATION_TYPE: "Information",
-                            win32con.EVENTLOG_AUDIT_SUCCESS: "Audit Success",
-                            win32con.EVENTLOG_AUDIT_FAILURE: "Audit Failure"
-                        }
-                        level = level_map.get(event_type, str(event_type))
-                        
-                        # Extraire le message
                         try:
-                            message = win32evtlogutil.SafeFormatMessage(event, log_type)
-                        except:
-                            message = f"<Message non disponible pour l'événement {event_id}>"
-                        
-                        # Créer un artefact
-                        metadata = {
-                            "event_id": str(event_id),
-                            "time_created": time_generated,
-                            "provider_name": source_name,
-                            "level": level,
-                            "log_type": log_type
-                        }
-                        
-                        self.add_artifact(
-                            artifact_type="event_log",
-                            source=f"win32evtlog_{log_type}",
-                            data={
-                                "message": message,
-                                "event_data": {
-                                    "event_id": event_id,
-                                    "time_generated": time_generated,
-                                    "source_name": source_name,
-                                    "event_type": event_type
-                                }
-                            },
-                            metadata=metadata
-                        )
+                            # Extraire les informations pertinentes
+                            event_id = event.EventID & 0xFFFF  # Masquer les bits de poids fort
+                            time_generated = event.TimeGenerated.Format()
+                            source_name = event.SourceName
+                            event_type = event.EventType
+                            
+                            # Convertir le type d'événement en niveau
+                            level_map = {
+                                win32con.EVENTLOG_ERROR_TYPE: "Error",
+                                win32con.EVENTLOG_WARNING_TYPE: "Warning",
+                                win32con.EVENTLOG_INFORMATION_TYPE: "Information",
+                                win32con.EVENTLOG_AUDIT_SUCCESS: "Audit Success",
+                                win32con.EVENTLOG_AUDIT_FAILURE: "Audit Failure"
+                            }
+                            level = level_map.get(event_type, str(event_type))
+                            
+                            # Extraire le message
+                            try:
+                                message = win32evtlogutil.SafeFormatMessage(event, log_type)
+                                # Limiter la taille du message pour éviter les problèmes d'encodage
+                                if len(message) > 1000:
+                                    message = message[:1000] + "..."
+                            except Exception:
+                                message = f"<Message non disponible pour l'événement {event_id}>"
+                            
+                            # Créer un artefact
+                            metadata = {
+                                "event_id": str(event_id),
+                                "time_created": time_generated,
+                                "provider_name": source_name,
+                                "level": level,
+                                "log_type": log_type,
+                                "collection_method": "win32evtlog"
+                            }
+                            
+                            self.add_artifact(
+                                artifact_type="event_log",
+                                source=f"win32evtlog_{log_type}",
+                                data={
+                                    "message": message,
+                                    "event_data": {
+                                        "event_id": event_id,
+                                        "time_generated": time_generated,
+                                        "source_name": source_name,
+                                        "event_type": event_type
+                                    }
+                                },
+                                metadata=metadata
+                            )
+                        except Exception as e:
+                            logger.error(f"Erreur lors du traitement d'un événement: {str(e)}")
+                            continue
                     
                     logger.info(f"{len(events)} événements collectés pour {log_type}")
                 
@@ -424,7 +524,8 @@ class EventLogCollector(BaseCollector):
                     "time_created": datetime.datetime.now().isoformat(),
                     "provider_name": "ForensicHunter",
                     "level": "Information",
-                    "log_type": log_type
+                    "log_type": log_type,
+                    "collection_method": "basic_fallback"
                 }
                 
                 self.add_artifact(
