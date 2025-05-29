@@ -42,27 +42,45 @@ def setup_logger(name="forensichunter", log_dir=None, level=logging.INFO):
     # Handler pour la console
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
+    console_handler.setLevel(level)  # Respect the general level for console
     logger.addHandler(console_handler)
     
     # Handler pour les fichiers si un répertoire est spécifié
     if log_dir:
         try:
             os.makedirs(log_dir, exist_ok=True)
+            # Main log file (e.g., INFO level)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file = os.path.join(log_dir, f"{name}_{timestamp}.log")
+            main_log_file = os.path.join(log_dir, f"{name}_{timestamp}.log")
             
-            file_handler = RotatingFileHandler(
-                log_file, 
+            main_file_handler = RotatingFileHandler(
+                main_log_file,
                 maxBytes=10*1024*1024,  # 10 MB
                 backupCount=5
             )
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-            
-            logger.info(f"Logs will be saved to: {log_file}")
+            main_file_handler.setFormatter(formatter)
+            main_file_handler.setLevel(level) # Respect the general level for this file
+            logger.addHandler(main_file_handler)
+            logger.info(f"Main logs will be saved to: {main_log_file}")
+
+            # Debug log file
+            debug_log_file = os.path.join(log_dir, "forensichunter_debug.log")
+            debug_file_handler = RotatingFileHandler(
+                debug_log_file,
+                maxBytes=20*1024*1024, # 20 MB for debug logs
+                backupCount=5
+            )
+            debug_file_handler.setFormatter(formatter)
+            debug_file_handler.setLevel(logging.DEBUG) # Debug level for this file
+            logger.addHandler(debug_file_handler)
+            logger.info(f"Debug logs will be saved to: {debug_log_file}")
+
         except Exception as e:
+            # Use a basic print here if logger itself fails for file setup
+            print(f"Critical error: Failed to set up file logging: {str(e)}")
+            # Also attempt to log to console if possible
             logger.error(f"Failed to set up file logging: {str(e)}")
-    
+            
     return logger
 
 def get_logger(name="forensichunter"):
