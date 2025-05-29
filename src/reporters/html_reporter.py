@@ -75,30 +75,42 @@ class HTMLReporter:
         try:
             # Créer le répertoire de sortie s'il n'existe pas
             output_dir = os.path.dirname(output_path)
-            os.makedirs(output_dir, exist_ok=True)
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except OSError as e:
+                logger.error(f"Failed to create output directory {output_dir}: {str(e)}")
+                return None
             
             # Créer un répertoire pour les ressources statiques
             assets_dir = os.path.join(output_dir, "assets")
-            os.makedirs(assets_dir, exist_ok=True)
-            
+            try:
+                os.makedirs(assets_dir, exist_ok=True)
+            except OSError as e:
+                # Log the error, but allow report generation to continue as it might still work (e.g. with default HTML)
+                logger.error(f"Failed to create assets directory {assets_dir}: {str(e)}. Report generation will continue but may lack styling.")
+
             # Copier les ressources statiques
-            self._copy_static_assets(assets_dir)
+            self._copy_static_assets(assets_dir) # This method handles its own errors
             
             # Préparer les données du rapport
-            report_data = self._prepare_report_data(findings, artifacts, case_info)
+            report_data = self._prepare_report_data(findings, artifacts, case_info) # This method handles its own errors
             
             # Générer le HTML
-            html_content = self._generate_html(report_data)
+            html_content = self._generate_html(report_data) # This method handles its own errors
             
             # Écrire le rapport
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(html_content)
+            try:
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+            except IOError as e:
+                logger.error(f"Failed to write HTML report to {output_path}: {str(e)}")
+                return None
             
             logger.info(f"Rapport HTML généré avec succès: {output_path}")
             return output_path
             
-        except Exception as e:
-            logger.error(f"Erreur lors de la génération du rapport HTML: {str(e)}")
+        except Exception as e: # Catch-all for any other unexpected errors during the overall process
+            logger.error(f"Unexpected error during HTML report generation: {str(e)}")
             return None
     
     def _prepare_report_data(self, findings, artifacts, case_info=None):
@@ -244,9 +256,11 @@ class HTMLReporter:
             str: Aperçu du contenu de l'artefact
         """
         try:
-            if not artifact.data:
+            if not hasattr(artifact, 'data') or not artifact.data:
                 return "Pas de données disponibles"
             
+            data_preview = "Aperçu non disponible" # Default preview
+
             if isinstance(artifact.data, dict):
                 if artifact.type == "filesystem":
                     file_type = artifact.data.get("type", "")
@@ -254,55 +268,58 @@ class HTMLReporter:
                     if file_type == "text":
                         content = artifact.data.get("content", "")
                         if content:
-                            # Limiter la taille de l'aperçu
-                            if len(content) > 500:
-                                return content[:500] + "..."
-                            return content
+                            data_preview = content[:500] + "..." if len(content) > 500 else content
+                        else:
+                            data_preview = "Contenu textuel vide"
                     
                     elif file_type == "binary":
-                        return "Données binaires (aperçu non disponible)"
+                        data_preview = "Données binaires (aperçu non disponible)"
                     
                     elif file_type == "metadata_only":
-                        return "Métadonnées uniquement (contenu non disponible)"
+                        data_preview = "Métadonnées uniquement (contenu non disponible)"
                     
-                    return "Type de fichier inconnu"
+                    else:
+                        data_preview = f"Type de fichier inconnu: {file_type}"
                 
                 elif artifact.type == "registry":
-                    # Formater les valeurs de registre
                     formatted = []
-                    for name, value in artifact.data.items():
-                        if isinstance(value, dict):
-                            value_str = value.get("value", "")
-                            value_type = value.get("type", "")
-                            formatted.append(f"{name} = {value_str} ({value_type})")
+                    for name, value_data in artifact.data.items():
+                        if isinstance(value_data, dict):
+                            value_str = value_data.get("value", "")
+                            value_type = value_data.get("type", "")
+                            formatted.append(f"{name} = {str(value_str)[:100]} ({value_type})") # Limit value preview
                         else:
-                            formatted.append(f"{name} = {value}")
-                    
-                    return "\n".join(formatted)
-                
+                            formatted.append(f"{name} = {str(value_data)[:100]}")
+                    data_preview = "\n".join(formatted)
+                    if len(data_preview) > 500: # Overall limit for registry preview
+                        data_preview = data_preview[:500] + "..."
+
                 elif artifact.type == "event_log":
-                    # Formater les événements
-                    event_id = artifact.metadata.get("event_id", "") if artifact.metadata else ""
-                    log_type = artifact.metadata.get("log_type", "") if artifact.metadata else ""
-                    return f"Événement {event_id} dans {log_type}: {artifact.data}"
+                    event_id_str = ""
+                    log_type_str = ""
+                    if hasattr(artifact, 'metadata') and artifact.metadata:
+                         event_id_str = artifact.metadata.get("event_id", "")
+                         log_type_str = artifact.metadata.get("log_type", "")
+                    data_preview = f"Événement {event_id_str} dans {log_type_str}: {str(artifact.data)[:300]}..."
                 
-                else:
-                    # Pour les autres types, afficher un résumé JSON
-                    json_str = json.dumps(artifact.data, indent=2)
-                    if len(json_str) > 500:
-                        return json_str[:500] + "..."
-                    return json_str
-            
-            else:
-                # Pour les données non structurées, afficher un aperçu
+                else: # For other dictionary-based types
+                    try:
+                        json_str = json.dumps(artifact.data, indent=2)
+                        data_preview = json_str[:500] + "..." if len(json_str) > 500 else json_str
+                    except TypeError as te: # Handle non-serializable data
+                        logger.warning(f"Data for artifact {artifact.id if hasattr(artifact, 'id') else 'UNKNOWN_ID'} of type {artifact.type} is not JSON serializable for preview: {str(te)}")
+                        data_preview = "Données non sérialisables pour l'aperçu JSON."
+
+            else: # For non-dictionary data (e.g., simple strings, numbers)
                 data_str = str(artifact.data)
-                if len(data_str) > 500:
-                    return data_str[:500] + "..."
-                return data_str
+                data_preview = data_str[:500] + "..." if len(data_str) > 500 else data_str
             
+            return data_preview
+
         except Exception as e:
-            logger.error(f"Erreur lors de la génération de l'aperçu de l'artefact {artifact.id}: {str(e)}")
-            return "Erreur lors de la génération de l'aperçu"
+            artifact_id_str = artifact.id if hasattr(artifact, 'id') else 'UNKNOWN_ID'
+            logger.error(f"Error generating preview for artifact {artifact_id_str}: {str(e)}")
+            return "Error generating preview for this artifact."
     
     def _get_severity_class(self, severity):
         """
@@ -355,26 +372,45 @@ class HTMLReporter:
         """
         try:
             # Vérifier si le répertoire static existe
-            if not os.path.exists(self.static_dir):
-                logger.warning(f"Le répertoire static {self.static_dir} n'existe pas. Création des ressources par défaut.")
+            if not os.path.isdir(self.static_dir): # Check if it's a directory specifically
+                logger.warning(f"Static assets directory {self.static_dir} does not exist or is not a directory. Attempting to create default assets.")
                 return self._create_default_assets(assets_dir)
             
             # Copier les ressources
+            copied_successfully = True
             for item in os.listdir(self.static_dir):
                 src = os.path.join(self.static_dir, item)
                 dst = os.path.join(assets_dir, item)
                 
-                if os.path.isdir(src):
-                    shutil.copytree(src, dst, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(src, dst)
+                try:
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst, dirs_exist_ok=True)
+                    elif os.path.isfile(src): # Ensure it's a file before copying
+                        shutil.copy2(src, dst)
+                    else:
+                        logger.warning(f"Skipping non-file/non-directory item in static assets: {src}")
+                        continue
+                except (IOError, OSError, shutil.Error) as e: # Catch specific copy errors
+                    logger.error(f"Error copying static asset from {src} to {dst}: {str(e)}")
+                    copied_successfully = False # Mark that at least one copy failed
             
-            logger.info(f"Ressources statiques copiées dans {assets_dir}")
-            return True
+            if copied_successfully:
+                logger.info(f"Static assets copied to {assets_dir}")
+            else:
+                logger.warning(f"Some static assets could not be copied to {assets_dir}. Falling back to creating default assets for missing items if necessary.")
+                # Optionally, one could try to create default assets only if critical files are missing.
+                # For simplicity here, if any copy fails, it might still try to ensure defaults are there.
+                return self._create_default_assets(assets_dir) # Fallback if any copy fails
             
-        except Exception as e:
-            logger.error(f"Erreur lors de la copie des ressources statiques: {str(e)}")
+            return True # If all successful or handled.
+            
+        except (OSError, IOError) as e: # Catch errors from os.listdir or initial checks
+            logger.error(f"Error accessing static assets directory {self.static_dir}: {str(e)}. Attempting to create default assets.")
             return self._create_default_assets(assets_dir)
+        except Exception as e: # Catch any other unexpected errors
+            logger.error(f"Unexpected error during static asset copying: {str(e)}. Attempting to create default assets.")
+            return self._create_default_assets(assets_dir)
+
     
     def _create_default_assets(self, assets_dir):
         """
@@ -386,18 +422,31 @@ class HTMLReporter:
         Returns:
             bool: True si la création a réussi, False sinon
         """
+        all_defaults_created = True
         try:
             # Créer le répertoire CSS
             css_dir = os.path.join(assets_dir, "css")
-            os.makedirs(css_dir, exist_ok=True)
+            try:
+                os.makedirs(css_dir, exist_ok=True)
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to create default asset directory {css_dir}: {str(e)}")
+                all_defaults_created = False
             
             # Créer le répertoire JS
             js_dir = os.path.join(assets_dir, "js")
-            os.makedirs(js_dir, exist_ok=True)
-            
+            try:
+                os.makedirs(js_dir, exist_ok=True)
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to create default asset directory {js_dir}: {str(e)}")
+                all_defaults_created = False
+
             # Créer le répertoire images
             img_dir = os.path.join(assets_dir, "img")
-            os.makedirs(img_dir, exist_ok=True)
+            try:
+                os.makedirs(img_dir, exist_ok=True)
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to create default asset directory {img_dir}: {str(e)}")
+                all_defaults_created = False
             
             # CSS par défaut
             default_css = """
@@ -1004,28 +1053,44 @@ function searchFindings() {
 """
             
             # Écrire les fichiers
-            with open(os.path.join(css_dir, "report.css"), "w") as f:
-                f.write(default_css)
+            try:
+                with open(os.path.join(css_dir, "report.css"), "w", encoding="utf-8") as f:
+                    f.write(default_css)
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to write default CSS file to {css_dir}: {str(e)}")
+                all_defaults_created = False
             
-            with open(os.path.join(js_dir, "report.js"), "w") as f:
-                f.write(default_js)
+            try:
+                with open(os.path.join(js_dir, "report.js"), "w", encoding="utf-8") as f:
+                    f.write(default_js)
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to write default JS file to {js_dir}: {str(e)}")
+                all_defaults_created = False
             
             # Créer un logo par défaut (base64)
-            default_logo = """
+            default_logo_content = """
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60">
   <rect width="200" height="60" fill="#2c3e50"/>
   <text x="10" y="38" font-family="Arial" font-size="24" fill="white">ForensicHunter</text>
 </svg>
 """
-            with open(os.path.join(img_dir, "logo.svg"), "w") as f:
-                f.write(default_logo)
+            try:
+                if os.path.isdir(img_dir): # Ensure img_dir was created
+                    with open(os.path.join(img_dir, "logo.svg"), "w", encoding="utf-8") as f:
+                        f.write(default_logo_content)
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to write default logo file to {img_dir}: {str(e)}")
+                all_defaults_created = False
+
+            if all_defaults_created:
+                logger.info(f"Default static assets created in {assets_dir}")
+            else:
+                logger.warning(f"Some default static assets could not be created in {assets_dir}.")
+            return all_defaults_created # Return status of default asset creation
             
-            logger.info(f"Ressources statiques par défaut créées dans {assets_dir}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de la création des ressources statiques par défaut: {str(e)}")
-            return False
+        except Exception as e: # Catch-all for any other unexpected error during default asset creation
+            logger.error(f"Unexpected error during default static asset creation: {str(e)}")
+            return False # Overall failure
     
     def _generate_html(self, report_data):
         """
@@ -1040,25 +1105,42 @@ function searchFindings() {
         try:
             # Vérifier si un template existe
             template_path = os.path.join(self.template_dir, "report_template.html")
-            
-            if os.path.exists(template_path):
-                # Utiliser le template existant
-                with open(template_path, "r", encoding="utf-8") as f:
-                    template = f.read()
-                
-                # Remplacer les variables dans le template
-                html = self._replace_template_variables(template, report_data)
-                
+            html = None # Initialize html variable
+
+            if os.path.exists(template_path) and os.path.isfile(template_path):
+                try:
+                    # Utiliser le template existant
+                    with open(template_path, "r", encoding="utf-8") as f:
+                        template_content = f.read()
+                    
+                    # Remplacer les variables dans le template
+                    html = self._replace_template_variables(template_content, report_data)
+                except IOError as e:
+                    logger.warning(f"Failed to open HTML template at {template_path}: {str(e)}. Falling back to default HTML generation.")
+                    # Fallback handled by html remaining None or by the outer except block
+                except Exception as e: # Catch other errors during template processing
+                    logger.error(f"Error processing HTML template {template_path}: {str(e)}. Falling back to default HTML generation.")
+                    # Fallback handled by html remaining None or by the outer except block
             else:
-                # Générer un HTML par défaut
+                logger.info(f"HTML template not found at {template_path} or it's not a file. Generating default HTML.")
+                # Fallback handled by html remaining None or by the outer except block
+
+            # If html is still None (due to template not existing, read error, or processing error), generate default
+            if html is None:
                 html = self._generate_default_html(report_data)
-            
+                
             return html
             
-        except Exception as e:
-            logger.error(f"Erreur lors de la génération du HTML: {str(e)}")
-            return self._generate_default_html(report_data)
-    
+        except Exception as e: # Final catch-all for _generate_html
+            logger.error(f"Unexpected error during HTML generation: {str(e)}. Falling back to default HTML.")
+            # Ensure _generate_default_html is robust enough or has its own detailed error handling
+            # For now, assume it returns a basic HTML string even on failure or raises its own errors.
+            try:
+                return self._generate_default_html(report_data)
+            except Exception as default_e:
+                logger.error(f"Critical error: Failed to generate even default HTML: {str(default_e)}")
+                return "<html><body><h1>Critical Error</h1><p>Report generation failed completely.</p></body></html>"
+
     def _replace_template_variables(self, template, report_data):
         """
         Remplace les variables dans le template HTML.
