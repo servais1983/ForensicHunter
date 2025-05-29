@@ -1112,6 +1112,9 @@ class ForensicHunterGUI(QMainWindow):
             QMessageBox.warning(self, "Aucune source sélectionnée", "Veuillez sélectionner au moins un fichier, dossier ou disque à analyser.")
             return
         
+        # Définir le répertoire de sortie
+        output_dir = self.config.get("output_dir", os.path.join(root_dir, "results"))
+        
         # Préparer les options d'analyse
         scan_options = {
             # Informations sur le cas
