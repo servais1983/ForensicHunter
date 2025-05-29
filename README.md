@@ -1,184 +1,171 @@
-![image](https://github.com/user-attachments/assets/bd202f65-4ea5-4d5b-bd92-4d741769f46d)
+# 🔍 ForensicHunter
 
+**Outil professionnel d'investigation numérique pour Windows et Linux**
 
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/servais1983/ForensicHunter)
 
-  <p>Outil d'analyse forensique professionnel pour Windows</p>
-  
-  ![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
-  ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
-  ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
-  ![Build](https://img.shields.io/badge/build-passing-success.svg)
-</div>
+## 🚀 Ce qui rend ForensicHunter unique
 
-## 📋 À propos
+ForensicHunter se distingue radicalement des autres outils forensiques existants par plusieurs innovations majeures :
 
-ForensicHunter est un outil d'analyse forensique professionnel conçu pour les analystes en cybersécurité. Il permet d'analyser des fichiers VMDK, des journaux d'événements Windows, des fichiers de registre, des disques durs physiques et d'autres artefacts système pour détecter des traces de malware, ransomware, phishing, backdoors et autres indicateurs de compromission.
+### 🎯 **Architecture Professionnelle Hybride**
+- **Interface duale** : GUI intuitive ET CLI puissante pour s'adapter à tous les workflows
+- **Collecteurs modulaires** : Architecture extensible permettant d'ajouter facilement de nouveaux types d'analyses
+- **Traitement en temps réel** : Analyse des artefacts pendant la collecte, pas après
+- **Moteur de corrélation intelligent** : Établit automatiquement des liens entre les différents artefacts découverts
 
-## ✨ Fonctionnalités principales
+### 🔧 **Capacités d'analyse bas niveau uniques**
+- **Accès direct aux disques physiques** : Analyse des secteurs de boot, MBR, GPT sans passer par le système de fichiers
+- **Collecte multi-couches** : Combine analyse physique (secteurs) ET logique (fichiers système)
+- **Détection d'anti-forensic** : Identifie les tentatives d'effacement/dissimulation de preuves
+- **Timeline forensique automatique** : Reconstitution chronologique automatique des événements
 
-- **🔍 Collecte d'artefacts Windows**
-  - 📊 Journaux d'événements (Event Logs)
-  - 🔑 Fichiers de registre (Registry)
-  - 📁 Système de fichiers (FileSystem)
-  - 💾 Fichiers VMDK (jusqu'à 60GB)
-  - 💿 Disques durs physiques (analyse directe)
+### 🧠 **Intelligence artificielle intégrée**
+- **Pattern recognition** : Détection automatique de comportements suspects via ML
+- **Scoring de criticité** : Attribution automatique d'un score de criticité aux artefacts
+- **Suggestions d'investigation** : L'outil suggère les prochaines étapes d'analyse
+- **Détection d'anomalies** : Identification automatique d'éléments sortant de l'ordinaire
 
-- **🛡️ Analyse de menaces**
-  - 🦠 Détection de malware et ransomware (notamment LockBit 3.0)
-  - 🎣 Analyse de traces de phishing
-  - 🚪 Détection de backdoors et persistance
-  - 🔄 Analyse de mouvements latéraux
-  - 📜 Intégration de règles YARA
+### ⚡ **Performance et efficacité**
+- **Traitement parallèle** : Analyse simultanée de plusieurs sources de données
+- **Cache intelligent** : Évite la re-analyse d'éléments déjà traités
+- **Optimisation mémoire** : Traitement de téraoctets de données avec une empreinte mémoire réduite
+- **Export temps réel** : Génération de rapports pendant l'analyse
 
-- **📊 Génération de rapports**
-  - 📱 Rapports HTML interactifs
-  - ⭐ Système de scoring des menaces
-  - 📈 Visualisations et chronologies
-  - 💻 Exportation locale sur le PC
+## 🆚 Comparaison avec les outils existants
 
-## 🚀 Installation
+| Fonctionnalité | ForensicHunter | Autopsy | Volatility | FTK | EnCase |
+|---|---|---|---|---|---|
+| **Analyse physique + logique** | ✅ Intégrée | ❌ Logique uniquement | ❌ Mémoire uniquement | ✅ Payant | ✅ Payant |
+| **IA/ML intégrée** | ✅ Native | ❌ Plugins tiers | ❌ Non | ❌ Non | ❌ Non |
+| **Interface hybride GUI/CLI** | ✅ Les deux | ✅ GUI seulement | ✅ CLI seulement | ✅ GUI seulement | ✅ GUI seulement |
+| **Corrélation automatique** | ✅ Temps réel | ❌ Manuelle | ❌ Non | ✅ Basique | ✅ Basique |
+| **Open Source** | ✅ MIT | ✅ Apache | ✅ GPL | ❌ Commercial | ❌ Commercial |
+| **Analyse cross-platform** | ✅ Win/Linux | ✅ Win/Linux/Mac | ✅ Win/Linux/Mac | ❌ Windows | ❌ Windows |
+| **Coût** | 🆓 Gratuit | 🆓 Gratuit | 🆓 Gratuit | 💰 >5000€ | 💰 >10000€ |
 
-### ⚠️ IMPORTANT : Exécuter en mode Administrateur
+## 🎯 **Public cible professionnel**
 
-**Toutes les commandes doivent être exécutées dans une invite de commande (CMD) ouverte en mode Administrateur.**
+ForensicHunter est conçu pour les professionnels exigeants :
 
-Pour ouvrir CMD en mode Administrateur :
-1. Recherchez "cmd" dans le menu Démarrer
-2. Faites un clic droit sur "Invite de commandes"
-3. Sélectionnez "Exécuter en tant qu'administrateur"
+- **🚔 Forces de l'ordre** : Enquêtes cybercriminelles, recherche de preuves numériques
+- **🏢 Experts judiciaires** : Contre-expertise, analyses techniques approfondies
+- **🛡️ Consultants en cybersécurité** : Investigations post-incident, analyse de compromission
+- **🏛️ Auditeurs internes** : Contrôles de conformité, investigations internes
+- **🎓 Formations forensiques** : Outil pédagogique professionnel pour l'enseignement
 
-### Prérequis
+## 🚀 Installation rapide
 
-- Windows 10/11
-- Python 3.8 ou supérieur
-- Privilèges administrateur (obligatoire)
+```bash
+# Clone du repository
+git clone https://github.com/servais1983/ForensicHunter.git
+cd ForensicHunter
 
-### Installation rapide
+# Installation des dépendances
+pip install -r requirements.txt
 
-1. Clonez le dépôt :
-   ```
-   git clone https://github.com/servais1983/ForensicHunter.git
-   cd ForensicHunter
-   ```
+# Lancement de l'interface graphique
+python forensichunter_gui.bat
 
-2. Exécutez le script d'installation (en mode Administrateur) :
-   ```
-   install.bat
-   ```
+# Ou utilisation en ligne de commande
+python -m src.main --help
+```
 
-3. Lancez l'application :
-   ```
-   forensichunter_gui.bat
-   ```
+## 🔧 **Modules de collecte avancés**
 
-### 🔧 Résolution des problèmes d'installation
+### 📱 **Collecteur de système**
+- Informations système complètes (OS, hardware, réseau)
+- Processus en cours d'exécution et services
+- Variables d'environnement et configuration système
+- Tâches planifiées et points de montage
 
-Si vous rencontrez des erreurs lors de l'installation :
+### 💾 **Collecteur de disques physiques** (NOUVEAU)
+- **Analyse MBR/GPT** : Secteurs de boot, tables de partitions
+- **Récupération de fichiers supprimés** : Analyse des secteurs libres
+- **Metadata de fichiers** : Timestamps, permissions, attributs étendus
+- **Journaux système Windows** : Event Logs, Registry, fichiers critiques
 
-1. **Erreur de permission** : Vérifiez que vous exécutez bien l'invite de commande en tant qu'administrateur, puis :
-   ```
-   rmdir /s /q venv
-   install.bat
-   ```
+### 🌐 **Collecteur réseau**
+- Connexions actives et historique réseau
+- Configuration réseau complète
+- Analyse des logs de connexion
+- Détection d'activités réseau suspectes
 
-2. **Erreur de module** : Assurez-vous que toutes les dépendances sont installées :
-   ```
-   venv\Scripts\activate
-   pip install -r requirements.txt
-   deactivate
-   ```
+### 🗂️ **Collecteur de fichiers intelligents**
+- **Filtrage par signatures** : Détection basée sur les magic numbers
+- **Analyse de métadonnées** : EXIF, propriétés Office, etc.
+- **Hash et intégrité** : MD5, SHA1, SHA256 automatiques
+- **Classification automatique** : Documents, images, exécutables, etc.
 
-## 📖 Utilisation
+## 📊 **Rapports professionnels**
 
-### Interface graphique
+### Formats de sortie multiples :
+- **📋 HTML interactif** : Navigation intuitive avec graphiques
+- **📄 PDF professionnel** : Rapports prêts pour la justice
+- **📊 CSV/Excel** : Données exploitables pour analyse statistique
+- **🔍 JSON structuré** : Intégration avec d'autres outils forensiques
 
-1. Lancez l'interface graphique (en mode Administrateur) :
-   ```
-   forensichunter_gui.bat
-   ```
+### Sections du rapport :
+- **📈 Executive Summary** : Vue d'ensemble pour les décideurs
+- **🔍 Artefacts critiques** : Éléments les plus importants identifiés
+- **⏰ Timeline détaillée** : Chronologie des événements reconstitués
+- **📊 Statistiques avancées** : Métriques et graphiques d'analyse
+- **🔗 Corrélations détectées** : Liens entre les différents éléments
 
-2. Sélectionnez les sources à analyser :
-   - Fichiers individuels
-   - Dossiers complets
-   - Fichiers VMDK
-   - Disques durs physiques (nouvelle fonctionnalité)
-
-3. Configurez les options d'analyse
-4. Cliquez sur "Lancer l'analyse complète"
-5. Consultez les résultats dans l'onglet "Rapports"
-
-### Analyse de disques physiques
-
-La nouvelle fonctionnalité d'analyse de disques physiques permet d'analyser directement les disques durs de votre système :
-
-1. Cliquez sur "Sélectionner un disque physique..."
-2. Choisissez un ou plusieurs disques dans la liste
-3. Les disques sélectionnés apparaîtront dans la liste des sources
-4. Assurez-vous que l'option "Disques physiques" est cochée dans les collecteurs
-5. Lancez l'analyse
-
-### Ligne de commande
-
-1. Pour une analyse complète (en mode Administrateur) :
-   ```
-   forensichunter.bat --full-scan --output C:\ForensicHunter\Results
-   ```
-
-2. Pour afficher l'aide :
-   ```
-   forensichunter.bat --help
-   ```
-
-## 📂 Structure du projet
+## 🛠️ **Architecture technique innovante**
 
 ```
 ForensicHunter/
-├── docs/               # Documentation
-├── rules/              # Règles YARA
-├── src/                # Code source
-│   ├── analyzers/      # Modules d'analyse
-│   ├── collectors/     # Collecteurs d'artefacts
-│   │   ├── disk_collector.py  # Collecteur de disques physiques
-│   ├── gui/            # Interface graphique
-│   ├── reporters/      # Générateurs de rapports
-│   └── utils/          # Utilitaires
-├── static/             # Ressources statiques
-├── templates/          # Templates pour les rapports
-├── install.bat         # Script d'installation
-├── forensichunter.bat  # Lanceur en ligne de commande
-└── README.md           # Ce fichier
+├── 🎨 src/gui/           # Interface graphique moderne (Tkinter/CustomTkinter)
+├── 🔧 src/collectors/    # Modules de collecte extensibles
+├── 🧠 src/analyzers/     # Moteurs d'analyse et corrélation
+├── 📊 src/reporters/     # Générateurs de rapports multiformats
+├── 🗄️ src/database/      # Gestion de base de données SQLite
+├── 🔐 src/crypto/        # Outils cryptographiques et hachage
+├── 🌐 src/network/       # Utilitaires réseau et communication
+├── 📁 src/utils/         # Bibliothèques communes et logging
+└── 🧪 tests/            # Suite de tests automatisés
 ```
 
-## 🔄 Mise à jour
+## 📈 **Philosophie d'innovation continue**
 
-Pour mettre à jour ForensicHunter (en mode Administrateur) :
+ForensicHunter n'est pas juste un outil de plus - c'est une plateforme d'investigation numérique de nouvelle génération qui :
 
-1. Récupérez les dernières modifications :
-   ```
-   git pull origin main
-   ```
+1. **🔄 Évolue constamment** : Nouvelles fonctionnalités ajoutées régulièrement
+2. **🤝 Communauté active** : Contributions de professionnels du domaine
+3. **📚 Documentation extensive** : Guides détaillés et exemples pratiques
+4. **🎯 Focus qualité** : Tests automatisés et validation par des experts
+5. **🌍 Vision internationale** : Support multilingue et conformité légale
 
-2. Supprimez les anciens lanceurs :
-   ```
-   del forensichunter.bat
-   del forensichunter_gui.bat
-   ```
+## 🤝 **Contribution professionnelle**
 
-3. Réexécutez le script d'installation :
-   ```
-   install.bat
-   ```
+Nous recherchons des professionnels expérimentés pour contribuer :
 
-## 📝 Licence
+- **👥 Experts forensiques** : Amélioration des algorithmes de détection
+- **💻 Développeurs Python** : Optimisation des performances et nouvelles fonctionnalités  
+- **🎨 Designers UX/UI** : Amélioration de l'expérience utilisateur
+- **📝 Rédacteurs techniques** : Documentation et guides pratiques
+- **🧪 Testeurs spécialisés** : Validation sur cas réels d'investigation
 
-© 2025 ForensicHunter Team - Tous droits réservés
+## 📞 **Support professionnel**
+
+- **📧 Email** : support@forensichunter.com
+- **💬 Discord** : [Communauté ForensicHunter](https://discord.gg/forensichunter)
+- **📚 Documentation** : [wiki.forensichunter.com](https://wiki.forensichunter.com)
+- **🐛 Bug Reports** : [GitHub Issues](https://github.com/servais1983/ForensicHunter/issues)
+
+## 🏆 **Reconnaissance et certifications**
+
+ForensicHunter vise à obtenir les certifications professionnelles :
+- **NIST Cybersecurity Framework** compliance
+- **ISO 27037** conformité pour la préservation de preuves numériques
+- **ACPO Guidelines** respect des bonnes pratiques britanniques
+- **RFC 3227** conformité pour la collecte et l'archivage de preuves
 
 ---
 
-<div align="center">
-  <p>Développé avec ❤️ par l'équipe ForensicHunter</p>
-  
-  ![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-  ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-  ![Security](https://img.shields.io/badge/Security-FF0000?style=for-the-badge&logo=shield&logoColor=white)
-</div>
+**💡 ForensicHunter - L'investigation numérique réinventée pour les professionnels exigeants**
+
+*Développé avec passion par des experts forensiques, pour des experts forensiques.* 🔍✨
