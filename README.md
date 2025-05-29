@@ -1,9 +1,7 @@
 ![image](https://github.com/user-attachments/assets/bd202f65-4ea5-4d5b-bd92-4d741769f46d)
 
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/servais1983/ForensicHunter/main/static/logo.png" alt="ForensicHunter Logo" width="200"/>
-  <h1>ForensicHunter</h1>
+
   <p>Outil d'analyse forensique professionnel pour Windows</p>
   
   ![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
