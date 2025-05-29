@@ -34,6 +34,32 @@ ForensicHunter se distingue radicalement des autres outils forensiques existants
 - **Optimisation mémoire** : Traitement de téraoctets de données avec une empreinte mémoire réduite
 - **Export temps réel** : Génération de rapports pendant l'analyse
 
+## 🆕 **Nouvelles fonctionnalités**
+
+### 📊 **Analyse multi-format avancée**
+- **Analyseur de fichiers logs** : Détection d'activités suspectes dans les fichiers journaux
+- **Analyseur de fichiers CSV** : Identification d'indicateurs de compromission dans les données tabulaires
+- **Réduction des faux positifs** : Système intelligent de liste blanche pour les clés de registre légitimes
+- **Intégration YARA massive** : Collection complète de règles YARA forensiques pour une détection précise
+
+### 🛡️ **Système de liste blanche intelligent**
+- **Filtrage contextuel** : Reconnaissance intelligente des éléments légitimes selon le contexte
+- **Listes prédéfinies** : Inclut les clés de registre Windows légitimes, processus système, domaines et IPs connus
+- **Personnalisation facile** : Ajout simple de nouvelles entrées via fichier de configuration
+- **Réduction drastique des faux positifs** : Amélioration significative de la précision des analyses
+
+### 📝 **Analyse avancée des fichiers logs**
+- **Détection d'authentification** : Identification des tentatives d'authentification échouées et attaques par force brute
+- **Détection d'exploitation** : Repérage des tentatives d'injection SQL, XSS et autres attaques
+- **Détection de malware** : Identification des traces de webshells, ransomware et autres malwares
+- **Détection de mouvements latéraux** : Repérage des techniques de propagation et persistance
+
+### 📈 **Analyse forensique des fichiers CSV**
+- **Détection d'IOCs** : Identification des adresses IP, domaines, hashes et URLs malveillants
+- **Analyse contextuelle** : Compréhension du contexte des données pour limiter les faux positifs
+- **Support multi-dialecte** : Reconnaissance automatique du format CSV pour une analyse précise
+- **Traitement optimisé** : Capacité à analyser des fichiers volumineux avec une performance optimale
+
 ## 🆚 Comparaison avec les outils existants
 
 | Fonctionnalité | ForensicHunter | Autopsy | Volatility | FTK | EnCase |
@@ -44,6 +70,8 @@ ForensicHunter se distingue radicalement des autres outils forensiques existants
 | **Corrélation automatique** | ✅ Temps réel | ❌ Manuelle | ❌ Non | ✅ Basique | ✅ Basique |
 | **Open Source** | ✅ MIT | ✅ Apache | ✅ GPL | ❌ Commercial | ❌ Commercial |
 | **Analyse cross-platform** | ✅ Win/Linux | ✅ Win/Linux/Mac | ✅ Win/Linux/Mac | ❌ Windows | ❌ Windows |
+| **Analyse multi-format** | ✅ VMDK/Log/CSV | ✅ Limitée | ❌ Mémoire | ✅ Payant | ✅ Payant |
+| **Réduction faux positifs** | ✅ Avancée | ❌ Basique | ❌ Non | ✅ Limitée | ✅ Limitée |
 | **Coût** | 🆓 Gratuit | 🆓 Gratuit | 🆓 Gratuit | 💰 >5000€ | 💰 >10000€ |
 
 ## 🎯 **Public cible professionnel**
@@ -81,7 +109,7 @@ python -m src.main --help
 - Variables d'environnement et configuration système
 - Tâches planifiées et points de montage
 
-### 💾 **Collecteur de disques physiques** (NOUVEAU)
+### 💾 **Collecteur de disques physiques**
 - **Analyse MBR/GPT** : Secteurs de boot, tables de partitions
 - **Récupération de fichiers supprimés** : Analyse des secteurs libres
 - **Metadata de fichiers** : Timestamps, permissions, attributs étendus
@@ -98,6 +126,12 @@ python -m src.main --help
 - **Analyse de métadonnées** : EXIF, propriétés Office, etc.
 - **Hash et intégrité** : MD5, SHA1, SHA256 automatiques
 - **Classification automatique** : Documents, images, exécutables, etc.
+
+### 📊 **Nouveaux analyseurs spécialisés**
+- **Analyseur de logs** : Détection d'activités suspectes dans les fichiers journaux
+- **Analyseur CSV** : Identification d'IOCs dans les données tabulaires
+- **Analyseur YARA avancé** : Utilisation de règles forensiques reconnues
+- **Système de liste blanche** : Réduction intelligente des faux positifs
 
 ## 📊 **Rapports professionnels**
 
@@ -121,11 +155,15 @@ ForensicHunter/
 ├── 🎨 src/gui/           # Interface graphique moderne (Tkinter/CustomTkinter)
 ├── 🔧 src/collectors/    # Modules de collecte extensibles
 ├── 🧠 src/analyzers/     # Moteurs d'analyse et corrélation
+│   ├── 📝 log_analyzer/  # Analyseurs de fichiers logs et CSV
+│   ├── 🔍 yara_analyzer.py # Analyseur YARA amélioré
+│   └── 🛡️ whitelist_manager.py # Gestionnaire de listes blanches
 ├── 📊 src/reporters/     # Générateurs de rapports multiformats
 ├── 🗄️ src/database/      # Gestion de base de données SQLite
 ├── 🔐 src/crypto/        # Outils cryptographiques et hachage
 ├── 🌐 src/network/       # Utilitaires réseau et communication
 ├── 📁 src/utils/         # Bibliothèques communes et logging
+├── 📜 rules/            # Règles YARA forensiques
 └── 🧪 tests/            # Suite de tests automatisés
 ```
 

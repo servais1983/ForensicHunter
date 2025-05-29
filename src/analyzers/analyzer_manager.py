@@ -2,265 +2,268 @@
 # -*- coding: utf-8 -*-
 
 """
-Module de gestion des analyseurs d'anomalies.
+Module de gestion des analyseurs d'artefacts forensiques.
 
-Ce module coordonne l'exécution des différents analyseurs d'anomalies
-et agrège leurs résultats pour la détection de comportements suspects.
+Ce module permet de gérer et d'orchestrer les différents analyseurs
+pour l'analyse d'artefacts forensiques.
 """
 
 import os
 import logging
-from typing import Dict, List, Any, Optional
+import importlib
+import inspect
+from pathlib import Path
 
-from src.analyzers.event_analyzer import EventLogAnalyzer
-from src.analyzers.registry_analyzer import RegistryAnalyzer
-from src.analyzers.filesystem_analyzer import FilesystemAnalyzer
-from src.analyzers.browser_analyzer import BrowserAnalyzer
-from src.analyzers.process_analyzer import ProcessAnalyzer
-from src.analyzers.network_analyzer import NetworkAnalyzer
-from src.analyzers.usb_analyzer import USBAnalyzer
-from src.analyzers.userdata_analyzer import UserDataAnalyzer
+from .base_analyzer import BaseAnalyzer
 
-logger = logging.getLogger("forensichunter")
-
+# Configuration du logger
+logger = logging.getLogger("forensichunter.analyzers.manager")
 
 class AnalyzerManager:
-    """Gestionnaire des analyseurs d'anomalies."""
-
-    def __init__(self, config):
+    """Gestionnaire d'analyseurs d'artefacts."""
+    
+    def __init__(self, config=None):
         """
-        Initialise le gestionnaire d'analyseurs.
+        Initialise un nouveau gestionnaire d'analyseurs.
         
         Args:
-            config: Configuration de l'application
+            config (dict, optional): Configuration du gestionnaire
         """
-        self.config = config
+        self.config = config or {}
         self.analyzers = {}
-        self._register_analyzers()
+        self.available_analyzers = {}
+        
+        # Charger les analyseurs intégrés
+        self._load_builtin_analyzers()
+        
+        # Charger les analyseurs personnalisés
+        custom_analyzers_path = self.config.get("custom_analyzers_path")
+        if custom_analyzers_path and os.path.exists(custom_analyzers_path):
+            self._load_custom_analyzers(custom_analyzers_path)
     
-    def _register_analyzers(self):
-        """Enregistre les analyseurs disponibles."""
-        self.analyzers = {
-            "eventlogs": EventLogAnalyzer(self.config),
-            "registry": RegistryAnalyzer(self.config),
-            "filesystem": FilesystemAnalyzer(self.config),
-            "browser": BrowserAnalyzer(self.config),
-            "process": ProcessAnalyzer(self.config),
-            "network": NetworkAnalyzer(self.config),
-            "usb": USBAnalyzer(self.config),
-            "userdata": UserDataAnalyzer(self.config)
-        }
+    def _load_builtin_analyzers(self):
+        """Charge les analyseurs intégrés."""
+        try:
+            # Importer les analyseurs de base
+            from .yara_analyzer import YaraAnalyzer
+            from .malware_analyzer import MalwareAnalyzer
+            from .phishing_analyzer import PhishingAnalyzer
+            
+            # Importer les analyseurs de logs et CSV
+            from .log_analyzer import LogAnalyzer, CSVAnalyzer
+            
+            # Enregistrer les analyseurs
+            self.register_analyzer(YaraAnalyzer)
+            self.register_analyzer(MalwareAnalyzer)
+            self.register_analyzer(PhishingAnalyzer)
+            self.register_analyzer(LogAnalyzer)
+            self.register_analyzer(CSVAnalyzer)
+            
+            # Importer les analyseurs optionnels
+            try:
+                from .virustotal.virustotal_analyzer import VirusTotalAnalyzer
+                self.register_analyzer(VirusTotalAnalyzer)
+            except ImportError:
+                logger.debug("Analyseur VirusTotal non disponible")
+            
+            try:
+                from .memory.volatility_analyzer import VolatilityAnalyzer
+                self.register_analyzer(VolatilityAnalyzer)
+            except ImportError:
+                logger.debug("Analyseur Volatility non disponible")
+            
+            try:
+                from ..ai.ai_analyzer import AIAnalyzer
+                self.register_analyzer(AIAnalyzer)
+            except ImportError:
+                logger.debug("Analyseur AI non disponible")
+            
+            try:
+                from ..behavioral.behavioral_analyzer import BehavioralAnalyzer
+                self.register_analyzer(BehavioralAnalyzer)
+            except ImportError:
+                logger.debug("Analyseur comportemental non disponible")
+            
+            try:
+                from ..cloud.cloud_analyzer import CloudAnalyzer
+                self.register_analyzer(CloudAnalyzer)
+            except ImportError:
+                logger.debug("Analyseur cloud non disponible")
+            
+            try:
+                from ..remote.remote_analyzer import RemoteAnalyzer
+                self.register_analyzer(RemoteAnalyzer)
+            except ImportError:
+                logger.debug("Analyseur distant non disponible")
+            
+            logger.info(f"{len(self.analyzers)} analyseurs intégrés chargés")
+            
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement des analyseurs intégrés: {str(e)}")
     
-    def analyze_artifacts(self, artifacts: Dict[str, Any]) -> Dict[str, Any]:
+    def _load_custom_analyzers(self, custom_analyzers_path):
         """
-        Analyse les artefacts collectés pour détecter des anomalies.
+        Charge les analyseurs personnalisés depuis un répertoire.
         
         Args:
-            artifacts: Dictionnaire contenant tous les artefacts collectés
+            custom_analyzers_path (str): Chemin vers le répertoire des analyseurs personnalisés
+        """
+        try:
+            # Ajouter le répertoire au chemin de recherche des modules
+            import sys
+            sys.path.append(os.path.dirname(custom_analyzers_path))
+            
+            # Parcourir les fichiers Python du répertoire
+            for root, dirs, files in os.walk(custom_analyzers_path):
+                for file in files:
+                    if file.endswith(".py") and not file.startswith("__"):
+                        try:
+                            # Construire le nom du module
+                            rel_path = os.path.relpath(os.path.join(root, file), custom_analyzers_path)
+                            module_name = os.path.splitext(rel_path.replace(os.sep, "."))[0]
+                            full_module_name = f"custom_analyzers.{module_name}"
+                            
+                            # Importer le module
+                            module = importlib.import_module(full_module_name)
+                            
+                            # Rechercher les classes d'analyseurs dans le module
+                            for name, obj in inspect.getmembers(module):
+                                if (inspect.isclass(obj) and 
+                                    issubclass(obj, BaseAnalyzer) and 
+                                    obj != BaseAnalyzer):
+                                    self.register_analyzer(obj)
+                        
+                        except Exception as e:
+                            logger.error(f"Erreur lors du chargement de l'analyseur personnalisé {file}: {str(e)}")
+            
+            logger.info(f"{len(self.analyzers)} analyseurs personnalisés chargés")
+            
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement des analyseurs personnalisés: {str(e)}")
+    
+    def register_analyzer(self, analyzer_class):
+        """
+        Enregistre un nouvel analyseur.
+        
+        Args:
+            analyzer_class: Classe de l'analyseur à enregistrer
             
         Returns:
-            Dictionnaire contenant les résultats d'analyse
+            bool: True si l'enregistrement a réussi, False sinon
         """
-        analysis_results = {
-            "alerts": [],
-            "scores": {},
-            "summary": {}
-        }
-        
-        logger.info("Démarrage de l'analyse des artefacts...")
-        
-        # Analyse des journaux d'événements
-        if "EventLogCollector" in artifacts:
-            try:
-                eventlog_results = self.analyzers["eventlogs"].analyze(artifacts["EventLogCollector"])
-                self._merge_analysis_results(analysis_results, eventlog_results)
-                logger.info(f"Analyse des journaux d'événements terminée: {len(eventlog_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse des journaux d'événements: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse du registre
-        if "RegistryCollector" in artifacts:
-            try:
-                registry_results = self.analyzers["registry"].analyze(artifacts["RegistryCollector"])
-                self._merge_analysis_results(analysis_results, registry_results)
-                logger.info(f"Analyse du registre terminée: {len(registry_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse du registre: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse des artefacts du système de fichiers
-        if "FilesystemCollector" in artifacts:
-            try:
-                filesystem_results = self.analyzers["filesystem"].analyze(artifacts["FilesystemCollector"])
-                self._merge_analysis_results(analysis_results, filesystem_results)
-                logger.info(f"Analyse des artefacts du système de fichiers terminée: {len(filesystem_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse des artefacts du système de fichiers: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse de l'historique des navigateurs
-        if "BrowserHistoryCollector" in artifacts:
-            try:
-                browser_results = self.analyzers["browser"].analyze(artifacts["BrowserHistoryCollector"])
-                self._merge_analysis_results(analysis_results, browser_results)
-                logger.info(f"Analyse de l'historique des navigateurs terminée: {len(browser_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse de l'historique des navigateurs: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse des processus
-        if "ProcessCollector" in artifacts:
-            try:
-                process_results = self.analyzers["process"].analyze(artifacts["ProcessCollector"])
-                self._merge_analysis_results(analysis_results, process_results)
-                logger.info(f"Analyse des processus terminée: {len(process_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse des processus: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse des connexions réseau
-        if "NetworkCollector" in artifacts:
-            try:
-                network_results = self.analyzers["network"].analyze(artifacts["NetworkCollector"])
-                self._merge_analysis_results(analysis_results, network_results)
-                logger.info(f"Analyse des connexions réseau terminée: {len(network_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse des connexions réseau: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse des périphériques USB
-        if "USBCollector" in artifacts:
-            try:
-                usb_results = self.analyzers["usb"].analyze(artifacts["USBCollector"])
-                self._merge_analysis_results(analysis_results, usb_results)
-                logger.info(f"Analyse des périphériques USB terminée: {len(usb_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse des périphériques USB: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Analyse des données utilisateur
-        if "UserDataCollector" in artifacts:
-            try:
-                userdata_results = self.analyzers["userdata"].analyze(artifacts["UserDataCollector"])
-                self._merge_analysis_results(analysis_results, userdata_results)
-                logger.info(f"Analyse des données utilisateur terminée: {len(userdata_results.get('alerts', []))} alertes")
-            except Exception as e:
-                logger.error(f"Erreur lors de l'analyse des données utilisateur: {str(e)}")
-                logger.debug("Détails de l'erreur:", exc_info=True)
-        
-        # Calcul du score global
-        analysis_results["global_score"] = self._calculate_global_score(analysis_results["scores"])
-        
-        # Génération du résumé global
-        analysis_results["summary"]["total_alerts"] = len(analysis_results["alerts"])
-        analysis_results["summary"]["alert_types"] = self._count_alert_types(analysis_results["alerts"])
-        analysis_results["summary"]["severity_distribution"] = self._count_severity_distribution(analysis_results["alerts"])
-        
-        logger.info(f"Analyse terminée: {analysis_results['summary']['total_alerts']} alertes détectées")
-        
-        return analysis_results
+        try:
+            # Créer une instance de l'analyseur
+            analyzer = analyzer_class(self.config)
+            
+            # Vérifier si l'analyseur est disponible
+            is_available = True
+            if hasattr(analyzer, "is_available"):
+                is_available = analyzer.is_available()
+            
+            # Enregistrer l'analyseur
+            name = analyzer.get_name()
+            self.analyzers[name] = analyzer_class
+            self.available_analyzers[name] = is_available
+            
+            logger.debug(f"Analyseur {name} enregistré (disponible: {is_available})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'enregistrement de l'analyseur {analyzer_class.__name__}: {str(e)}")
+            return False
     
-    def _merge_analysis_results(self, target: Dict[str, Any], source: Dict[str, Any]):
+    def get_analyzer(self, name):
         """
-        Fusionne les résultats d'analyse d'un analyseur dans les résultats globaux.
+        Retourne un analyseur par son nom.
         
         Args:
-            target: Dictionnaire cible (résultats globaux)
-            source: Dictionnaire source (résultats d'un analyseur)
-        """
-        # Fusion des alertes
-        if "alerts" in source and isinstance(source["alerts"], list):
-            target["alerts"].extend(source["alerts"])
-        
-        # Fusion des scores
-        if "scores" in source and isinstance(source["scores"], dict):
-            for category, score in source["scores"].items():
-                target["scores"][category] = score
-        
-        # Fusion des résumés
-        if "summary" in source and isinstance(source["summary"], dict):
-            for key, value in source["summary"].items():
-                target["summary"][key] = value
-    
-    def _calculate_global_score(self, scores: Dict[str, float]) -> float:
-        """
-        Calcule un score global à partir des scores par catégorie.
-        
-        Args:
-            scores: Dictionnaire des scores par catégorie
+            name (str): Nom de l'analyseur
             
         Returns:
-            Score global
+            BaseAnalyzer: Instance de l'analyseur demandé, ou None si non trouvé
         """
-        if not scores:
-            return 0.0
-        
-        # Pondération des catégories
-        weights = {
-            "eventlogs": 1.0,
-            "registry": 1.0,
-            "filesystem": 0.8,
-            "browser": 0.6,
-            "process": 1.2,
-            "network": 1.2,
-            "usb": 0.7,
-            "userdata": 0.5
-        }
-        
-        total_score = 0.0
-        total_weight = 0.0
-        
-        for category, score in scores.items():
-            weight = weights.get(category, 1.0)
-            total_score += score * weight
-            total_weight += weight
-        
-        if total_weight == 0:
-            return 0.0
-        
-        # Normalisation du score entre 0 et 100
-        return min(100.0, max(0.0, total_score / total_weight))
+        analyzer_class = self.analyzers.get(name)
+        if analyzer_class:
+            return analyzer_class(self.config)
+        return None
     
-    def _count_alert_types(self, alerts: List[Dict[str, Any]]) -> Dict[str, int]:
+    def get_all_analyzers(self):
         """
-        Compte le nombre d'alertes par type.
+        Retourne tous les analyseurs enregistrés.
+        
+        Returns:
+            list: Liste d'instances d'analyseurs
+        """
+        return [analyzer_class(self.config) for analyzer_class in self.analyzers.values()]
+    
+    def get_available_analyzers(self):
+        """
+        Retourne tous les analyseurs disponibles.
+        
+        Returns:
+            list: Liste d'instances d'analyseurs disponibles
+        """
+        return [self.analyzers[name](self.config) for name, available in self.available_analyzers.items() if available]
+    
+    def analyze_artifacts(self, artifacts, analyzer_names=None):
+        """
+        Analyse les artefacts à l'aide des analyseurs spécifiés.
         
         Args:
-            alerts: Liste des alertes
-            
+            artifacts (list): Liste d'objets Artifact à analyser
+            analyzer_names (list, optional): Liste des noms d'analyseurs à utiliser.
+                Si None, tous les analyseurs disponibles sont utilisés.
+                
         Returns:
-            Dictionnaire contenant le nombre d'alertes par type
+            list: Liste d'objets Finding résultant de l'analyse
         """
-        alert_types = {}
+        findings = []
         
-        for alert in alerts:
-            alert_type = alert.get("type", "unknown")
-            alert_types[alert_type] = alert_types.get(alert_type, 0) + 1
+        # Déterminer les analyseurs à utiliser
+        if analyzer_names:
+            analyzers = [self.get_analyzer(name) for name in analyzer_names 
+                        if name in self.analyzers and self.available_analyzers.get(name, False)]
+        else:
+            analyzers = self.get_available_analyzers()
         
-        return alert_types
+        # Analyser les artefacts
+        for analyzer in analyzers:
+            try:
+                logger.info(f"Analyse des artefacts avec {analyzer.get_name()}...")
+                analyzer_findings = analyzer.analyze(artifacts)
+                findings.extend(analyzer_findings)
+                logger.info(f"{len(analyzer_findings)} résultats trouvés avec {analyzer.get_name()}")
+            except Exception as e:
+                logger.error(f"Erreur lors de l'analyse avec {analyzer.get_name()}: {str(e)}")
+        
+        return findings
     
-    def _count_severity_distribution(self, alerts: List[Dict[str, Any]]) -> Dict[str, int]:
+    def get_analyzer_info(self):
         """
-        Compte le nombre d'alertes par niveau de sévérité.
+        Retourne des informations sur les analyseurs enregistrés.
         
-        Args:
-            alerts: Liste des alertes
-            
         Returns:
-            Dictionnaire contenant le nombre d'alertes par niveau de sévérité
+            list: Liste de dictionnaires contenant des informations sur les analyseurs
         """
-        severity_distribution = {
-            "critical": 0,
-            "high": 0,
-            "medium": 0,
-            "low": 0,
-            "info": 0
-        }
+        info = []
         
-        for alert in alerts:
-            severity = alert.get("severity", "info").lower()
-            if severity in severity_distribution:
-                severity_distribution[severity] += 1
+        for name, analyzer_class in self.analyzers.items():
+            try:
+                analyzer = analyzer_class(self.config)
+                
+                # Vérifier si l'analyseur est disponible
+                is_available = True
+                if hasattr(analyzer, "is_available"):
+                    is_available = analyzer.is_available()
+                
+                # Ajouter les informations sur l'analyseur
+                info.append({
+                    "name": name,
+                    "description": analyzer.get_description(),
+                    "available": is_available
+                })
+                
+            except Exception as e:
+                logger.error(f"Erreur lors de la récupération des informations sur l'analyseur {name}: {str(e)}")
         
-        return severity_distribution
+        return info
