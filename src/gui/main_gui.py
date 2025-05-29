@@ -53,6 +53,7 @@ try:
     from src.analyzers.log_analyzer.log_analyzer import LogAnalyzer
     from src.analyzers.log_analyzer.csv_analyzer import CSVAnalyzer
     from src.reporters.html_reporter import HTMLReporter
+    from src.gui.artifacts_view import ArtifactsView
 except ImportError:
     # Si l'import absolu avec src. échoue, essayons sans le préfixe src.
     try:
@@ -525,6 +526,10 @@ class ForensicHunterGUI(QMainWindow):
         self.scan_tab = QWidget()
         self._create_scan_tab()
         self.tab_widget.addTab(self.scan_tab, "Analyse")
+        
+        # Onglet Artefacts
+        self.artifacts_tab = ArtifactsView(self)
+        self.tab_widget.addTab(self.artifacts_tab, "Artefacts")
         
         # Onglet Rapports
         self.report_tab = QWidget()
@@ -1179,21 +1184,37 @@ class ForensicHunterGUI(QMainWindow):
         self.log_output.append(f"Statut: {results.get('status', 'inconnu')}")
         
         if results.get("status") == "success":
-            self.log_output.append(f"Artefacts collectés: {len(results.get('artifacts', []))}")
-            self.log_output.append(f"Menaces détectées: {len(results.get('findings', []))}")
+            # Stocker les résultats pour accès ultérieur
+            self.last_scan_results = results
+            
+            # Récupérer les artefacts et les résultats
+            artifacts = results.get('artifacts', [])
+            findings = results.get('findings', [])
+            
+            self.log_output.append(f"Artefacts collectés: {len(artifacts)}")
+            self.log_output.append(f"Menaces détectées: {len(findings)}")
+            
+            # Mettre à jour l'onglet Artefacts avec les nouveaux artefacts
+            self.artifacts_tab.set_artifacts(artifacts)
             
             # Afficher le chemin du rapport
             report_path = results.get("report_path")
             if report_path and os.path.exists(report_path):
                 self.log_output.append(f"Rapport généré: {report_path}")
                 
-                # Proposer d'ouvrir le rapport
-                reply = QMessageBox.question(self, 'Rapport généré',
-                                           f"L'analyse est terminée et le rapport a été généré.\n\nVoulez-vous ouvrir le rapport maintenant ?",
+                # Proposer d'ouvrir le rapport ou d'explorer les artefacts
+                reply = QMessageBox.question(self, 'Analyse terminée',
+                                           f"L'analyse est terminée et le rapport a été généré.\n\n"
+                                           f"Vous pouvez maintenant:\n"
+                                           f"- Ouvrir le rapport HTML\n"
+                                           f"- Explorer les {len(artifacts)} artefacts collectés dans l'onglet 'Artefacts'\n\n"
+                                           f"Voulez-vous ouvrir le rapport maintenant ?",
                                            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
                 if reply == QMessageBox.Yes:
                     self._view_report(report_path)
-                    self.tab_widget.setCurrentWidget(self.report_tab)
+                else:
+                    # Basculer vers l'onglet Artefacts
+                    self.tab_widget.setCurrentWidget(self.artifacts_tab)
         else:
             self.log_output.append(f"Erreur: {results.get('error', 'Erreur inconnue')}")
         
