@@ -1115,6 +1115,11 @@ class ForensicHunterGUI(QMainWindow):
         # Définir le répertoire de sortie
         output_dir = self.config.get("output_dir", os.path.join(root_dir, "results"))
         
+        # Initialiser les variables pour les sources à analyser
+        selected_paths = []
+        vmdk_path = ""
+        selected_disks = []
+        
         # Préparer les options d'analyse
         scan_options = {
             # Informations sur le cas
