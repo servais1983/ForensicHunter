@@ -14,7 +14,9 @@ import logging
 import tempfile
 import json
 import platform
+import re
 from pathlib import Path
+import shutil
 
 from .base_analyzer import BaseAnalyzer, Finding
 
@@ -39,6 +41,16 @@ class YaraAnalyzer(BaseAnalyzer):
         self.temp_dir = None
         self.yara_available = False
         self.yara = None
+        self.valid_rules_dir = None
+        self.windows_version = None
+        
+        # Détection de la version de Windows
+        if platform.system() == "Windows":
+            try:
+                self.windows_version = platform.win32_ver()[0]
+                logger.info(f"Version de Windows détectée: {self.windows_version}")
+            except:
+                logger.warning("Impossible de détecter la version de Windows")
         
         # Tentative d'initialisation de YARA
         self._initialize_yara()
@@ -83,6 +95,12 @@ class YaraAnalyzer(BaseAnalyzer):
             os.path.join(python_dir, "DLLs"),
             os.path.join(python_dir, "Library", "bin"),
             os.path.join(python_dir, "Scripts"),
+            os.path.join(python_dir, "Lib", "site-packages", "yara"),
+            os.path.join(python_dir, "Lib", "site-packages", "yara_python"),
+            os.path.join(os.environ.get("PROGRAMFILES", "C:\\Program Files"), "YARA"),
+            os.path.join(os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)"), "YARA"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "YARA"),
+            os.path.join(os.environ.get("APPDATA", ""), "YARA"),
         ]
         
         # Ajouter temporairement les chemins au PATH
@@ -128,6 +146,22 @@ class YaraAnalyzer(BaseAnalyzer):
             return
         except Exception as e:
             logger.debug(f"Échec du chargement explicite: {str(e)}")
+        
+        # 4. Tentative avec pip install en ligne de commande (pour les anciennes versions de Windows)
+        try:
+            if self.windows_version and self.windows_version in ["7", "8", "8.1"]:
+                logger.info("Tentative d'installation de yara-python pour Windows ancien...")
+                import subprocess
+                subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "yara-python==4.0.5"])
+                
+                # Nouvelle tentative d'importation
+                import yara
+                self.yara = yara
+                self.yara_available = True
+                logger.info("YARA initialisé après installation de version compatible")
+                return
+        except Exception as e:
+            logger.debug(f"Échec de l'installation compatible: {str(e)}")
         
         # Restaurer le PATH original
         os.environ["PATH"] = original_path
@@ -287,6 +321,118 @@ class YaraAnalyzer(BaseAnalyzer):
         except:
             return 0
     
+    def _validate_rule_file(self, rule_path):
+        """
+        Valide un fichier de règle YARA individuellement.
+        
+        Args:
+            rule_path (str): Chemin vers le fichier de règle
+            
+        Returns:
+            bool: True si la règle est valide, False sinon
+        """
+        try:
+            # Lire le contenu du fichier
+            with open(rule_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            # Vérifier les modules non supportés
+            unsupported_modules = ["cuckoo", "magic", "hash", "authenticode", "dotnet", "elf", "math"]
+            for module in unsupported_modules:
+                if f"import \"{module}\"" in content:
+                    logger.debug(f"Module non supporté dans {rule_path}: {module}")
+                    return False
+            
+            # Vérifier les champs non supportés
+            unsupported_fields = [
+                "sync", "certificate", "url", "service", "receiver", "package_name", 
+                "activity", "app_name", "network", "permission"
+            ]
+            
+            for field in unsupported_fields:
+                if re.search(r'\b' + field + r'\s*=', content):
+                    logger.debug(f"Champ non supporté dans {rule_path}: {field}")
+                    return False
+            
+            # Vérifier les identifiants non définis
+            undefined_identifiers = ["is__elf"]
+            for identifier in undefined_identifiers:
+                if re.search(r'\b' + identifier + r'\b', content):
+                    logger.debug(f"Identifiant non défini dans {rule_path}: {identifier}")
+                    return False
+            
+            # Tester la compilation
+            self.yara.compile(filepath=rule_path)
+            return True
+            
+        except Exception as e:
+            logger.debug(f"Erreur de validation pour {rule_path}: {str(e)}")
+            return False
+    
+    def _create_valid_rules_directory(self):
+        """
+        Crée un répertoire de règles valides en filtrant les règles incompatibles.
+        
+        Returns:
+            str: Chemin vers le répertoire de règles valides
+        """
+        # Créer un répertoire temporaire pour les règles valides
+        valid_rules_dir = os.path.join(self.temp_dir, "valid_rules")
+        os.makedirs(valid_rules_dir, exist_ok=True)
+        
+        # Chercher les fichiers de règles
+        rule_files = []
+        for root, dirs, files in os.walk(self.rules_dir):
+            for file in files:
+                if file.endswith(".yar") or file.endswith(".yara"):
+                    rule_files.append(os.path.join(root, file))
+        
+        # Ajouter les règles personnalisées
+        for rule_path in self.custom_rules:
+            if os.path.exists(rule_path):
+                rule_files.append(rule_path)
+        
+        # Valider et copier les règles valides
+        valid_count = 0
+        invalid_count = 0
+        
+        for rule_path in rule_files:
+            if self._validate_rule_file(rule_path):
+                # Copier la règle valide dans le répertoire temporaire
+                dest_path = os.path.join(valid_rules_dir, os.path.basename(rule_path))
+                shutil.copy2(rule_path, dest_path)
+                valid_count += 1
+            else:
+                invalid_count += 1
+        
+        logger.info(f"Règles validées: {valid_count} valides, {invalid_count} invalides")
+        
+        # Créer un index des règles valides
+        self._create_index_file(valid_rules_dir)
+        
+        return valid_rules_dir
+    
+    def _create_index_file(self, rules_dir):
+        """
+        Crée un fichier d'index pour les règles valides.
+        
+        Args:
+            rules_dir (str): Répertoire contenant les règles valides
+        """
+        index_path = os.path.join(rules_dir, "index.yar")
+        
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write('/*\n')
+            f.write(' * ForensicHunter - Index des règles YARA valides\n')
+            f.write(' * Généré automatiquement\n')
+            f.write(' */\n\n')
+            
+            for root, dirs, files in os.walk(rules_dir):
+                for file in files:
+                    if (file.endswith(".yar") or file.endswith(".yara")) and file != "index.yar":
+                        rel_path = os.path.relpath(os.path.join(root, file), rules_dir)
+                        f.write(f'include "./{rel_path}"\n')
+    
     def _compile_rules(self):
         """
         Compile les règles YARA.
@@ -295,33 +441,27 @@ class YaraAnalyzer(BaseAnalyzer):
             bool: True si la compilation a réussi, False sinon
         """
         try:
-            # Vérifier si le répertoire de règles existe
-            if not os.path.exists(self.rules_dir):
-                logger.warning(f"Le répertoire de règles {self.rules_dir} n'existe pas. Création du répertoire.")
-                os.makedirs(self.rules_dir, exist_ok=True)
+            # Créer un répertoire de règles valides
+            self.valid_rules_dir = self._create_valid_rules_directory()
             
-            # Chercher les fichiers de règles
+            if not os.path.exists(self.valid_rules_dir):
+                logger.error("Impossible de créer le répertoire de règles valides")
+                return False
+            
+            # Vérifier si des règles valides existent
             rule_files = []
-            
-            for root, dirs, files in os.walk(self.rules_dir):
+            for root, dirs, files in os.walk(self.valid_rules_dir):
                 for file in files:
                     if file.endswith(".yar") or file.endswith(".yara"):
                         rule_files.append(os.path.join(root, file))
             
-            # Ajouter les règles personnalisées
-            for rule_path in self.custom_rules:
-                if os.path.exists(rule_path):
-                    rule_files.append(rule_path)
-                else:
-                    logger.warning(f"Le fichier de règles personnalisées {rule_path} n'existe pas.")
-            
             if not rule_files:
-                logger.warning("Aucun fichier de règles YARA trouvé.")
+                logger.warning("Aucune règle YARA valide trouvée.")
                 
                 # Créer des règles par défaut si aucune n'est trouvée
                 if self._create_default_rules():
                     # Rechercher à nouveau les fichiers de règles
-                    for root, dirs, files in os.walk(self.rules_dir):
+                    for root, dirs, files in os.walk(self.valid_rules_dir):
                         for file in files:
                             if file.endswith(".yar") or file.endswith(".yara"):
                                 rule_files.append(os.path.join(root, file))
@@ -395,148 +535,190 @@ class YaraAnalyzer(BaseAnalyzer):
         """
         try:
             # Créer le répertoire de règles s'il n'existe pas
-            os.makedirs(self.rules_dir, exist_ok=True)
+            if not os.path.exists(self.valid_rules_dir):
+                os.makedirs(self.valid_rules_dir, exist_ok=True)
             
-            # Règles pour les ransomwares
-            ransomware_rules = """
-rule LockBit_Ransomware {
+            # Règles par défaut pour les ransomwares
+            ransomware_rule = os.path.join(self.valid_rules_dir, "default_ransomware.yar")
+            with open(ransomware_rule, 'w', encoding='utf-8') as f:
+                f.write("""
+rule Generic_Ransomware {
     meta:
-        description = "Détecte les artefacts du ransomware LockBit 3.0"
+        description = "Détecte des indicateurs génériques de ransomware"
         author = "ForensicHunter"
-        severity = "critical"
-        confidence = 80
+        severity = "high"
+        confidence = 75
     strings:
-        $lockbit1 = "LockBit" nocase
-        $lockbit2 = ".lockbit" nocase
-        $lockbit3 = "LOCKBIT_RANSOMWARE" nocase
-        $lockbit4 = "restore-my-files.txt" nocase
-        $lockbit5 = "HLJkNskOq" nocase
-        $lockbit6 = "LockBit Black" nocase
+        $ransom1 = "your files have been encrypted" nocase
+        $ransom2 = "pay the ransom" nocase
+        $ransom3 = "bitcoin" nocase
+        $ransom4 = "decrypt" nocase
+        $ransom5 = "README.txt" nocase
+        $ransom6 = "HOW_TO_DECRYPT" nocase
+        $ransom7 = "DECRYPT_INSTRUCTION" nocase
+        $ransom8 = ".locked" nocase
+        $ransom9 = ".crypt" nocase
+        $ransom10 = ".encrypted" nocase
+        $ransom11 = "RECOVERY_KEY" nocase
+        $ransom12 = "HELP_DECRYPT" nocase
     condition:
-        any of them
+        3 of them
 }
-
-rule Ryuk_Ransomware {
-    meta:
-        description = "Détecte les artefacts du ransomware Ryuk"
-        author = "ForensicHunter"
-        severity = "critical"
-        confidence = 80
-    strings:
-        $ryuk1 = ".RYK" nocase
-        $ryuk2 = "RyukReadMe.txt" nocase
-        $ryuk3 = "UNIQUE_ID_DO_NOT_REMOVE" nocase
-    condition:
-        any of them
-}
-
-rule WannaCry_Ransomware {
-    meta:
-        description = "Détecte les artefacts du ransomware WannaCry"
-        author = "ForensicHunter"
-        severity = "critical"
-        confidence = 80
-    strings:
-        $wannacry1 = ".wncry" nocase
-        $wannacry2 = "@WanaDecryptor@" nocase
-        $wannacry3 = "tasksche.exe" nocase
-        $wannacry4 = "taskdl.exe" nocase
-    condition:
-        any of them
-}
-"""
+                """)
             
-            # Règles pour les malwares génériques
-            malware_rules = """
+            # Règles par défaut pour les backdoors
+            backdoor_rule = os.path.join(self.valid_rules_dir, "default_backdoor.yar")
+            with open(backdoor_rule, 'w', encoding='utf-8') as f:
+                f.write("""
+rule Generic_Backdoor {
+    meta:
+        description = "Détecte des indicateurs génériques de backdoor"
+        author = "ForensicHunter"
+        severity = "high"
+        confidence = 70
+    strings:
+        $cmd1 = "cmd.exe" nocase
+        $cmd2 = "powershell" nocase
+        $cmd3 = "netcat" nocase
+        $cmd4 = "nc.exe" nocase
+        $cmd5 = "reverse shell" nocase
+        $cmd6 = "connect-back" nocase
+        $cmd7 = "bind shell" nocase
+        $cmd8 = "backdoor" nocase
+        $cmd9 = "remote access" nocase
+        $net1 = "socket(" nocase
+        $net2 = "wsock32" nocase
+        $net3 = "ws2_32" nocase
+        $net4 = "recv(" nocase
+        $net5 = "send(" nocase
+        $net6 = "connect(" nocase
+    condition:
+        (2 of ($cmd*)) and (2 of ($net*))
+}
+                """)
+            
+            # Règles par défaut pour les webshells
+            webshell_rule = os.path.join(self.valid_rules_dir, "default_webshell.yar")
+            with open(webshell_rule, 'w', encoding='utf-8') as f:
+                f.write("""
+rule Generic_Webshell {
+    meta:
+        description = "Détecte des indicateurs génériques de webshell"
+        author = "ForensicHunter"
+        severity = "high"
+        confidence = 80
+    strings:
+        $php1 = "<?php" nocase
+        $php2 = "eval(" nocase
+        $php3 = "system(" nocase
+        $php4 = "exec(" nocase
+        $php5 = "shell_exec(" nocase
+        $php6 = "passthru(" nocase
+        $php7 = "base64_decode(" nocase
+        $php8 = "preg_replace" nocase
+        $php9 = "move_uploaded_file" nocase
+        $asp1 = "<%@" nocase
+        $asp2 = "Response.Write" nocase
+        $asp3 = "CreateObject" nocase
+        $asp4 = "WScript.Shell" nocase
+        $asp5 = "Server.CreateObject" nocase
+        $asp6 = "WSCRIPT.SHELL" nocase
+        $asp7 = "ExecuteGlobal" nocase
+        $input1 = "$_GET" nocase
+        $input2 = "$_POST" nocase
+        $input3 = "$_REQUEST" nocase
+        $input4 = "Request.Form" nocase
+        $input5 = "Request.QueryString" nocase
+    condition:
+        (2 of ($php*) and 1 of ($input*)) or
+        (2 of ($asp*) and 1 of ($input*))
+}
+                """)
+            
+            # Règles par défaut pour les malwares
+            malware_rule = os.path.join(self.valid_rules_dir, "default_malware.yar")
+            with open(malware_rule, 'w', encoding='utf-8') as f:
+                f.write("""
 rule Generic_Malware {
     meta:
-        description = "Détecte les artefacts génériques de malware"
-        author = "ForensicHunter"
-        severity = "medium"
-        confidence = 60
-    strings:
-        $malware1 = "powershell -e " nocase
-        $malware2 = "powershell -enc" nocase
-        $malware3 = "powershell -nop -w hidden -c" nocase
-        $malware4 = "cmd.exe /c powershell" nocase
-        $malware5 = "rundll32.exe" nocase
-    condition:
-        any of them
-}
-
-rule Suspicious_PowerShell {
-    meta:
-        description = "Détecte les scripts PowerShell suspects"
+        description = "Détecte des indicateurs génériques de malware"
         author = "ForensicHunter"
         severity = "medium"
         confidence = 65
     strings:
-        $ps1 = "Invoke-Expression" nocase
-        $ps2 = "IEX" nocase
-        $ps3 = "New-Object Net.WebClient" nocase
-        $ps4 = "DownloadString" nocase
-        $ps5 = "DownloadFile" nocase
-        $ps6 = "Start-Process" nocase
+        $packer1 = "UPX" nocase
+        $packer2 = "themida" nocase
+        $packer3 = "PECompact" nocase
+        $packer4 = "ASPack" nocase
+        $packer5 = "FSG" nocase
+        $packer6 = "NSIS" nocase
+        $packer7 = "MPress" nocase
+        $inject1 = "VirtualAlloc" nocase
+        $inject2 = "WriteProcessMemory" nocase
+        $inject3 = "CreateRemoteThread" nocase
+        $inject4 = "NtCreateThreadEx" nocase
+        $inject5 = "RtlCreateUserThread" nocase
+        $persist1 = "CurrentVersion\\Run" nocase
+        $persist2 = "CurrentVersion\\RunOnce" nocase
+        $persist3 = "Schedule" nocase
+        $persist4 = "WinLogon" nocase
+        $persist5 = "Startup" nocase
+        $persist6 = "MACHINE\\SOFTWARE\\Microsoft" nocase
     condition:
-        3 of them
+        (2 of ($packer*)) or
+        (2 of ($inject*)) or
+        (2 of ($persist*))
 }
-"""
+                """)
             
-            # Écrire les règles dans des fichiers
-            with open(os.path.join(self.rules_dir, "ransomware.yar"), "w", encoding='utf-8') as f:
-                f.write(ransomware_rules)
-            
-            with open(os.path.join(self.rules_dir, "malware.yar"), "w", encoding='utf-8') as f:
-                f.write(malware_rules)
+            # Créer un fichier d'index
+            self._create_index_file(self.valid_rules_dir)
             
             logger.info("Règles YARA par défaut créées avec succès")
             return True
             
         except Exception as e:
-            logger.error(f"Erreur lors de la création des règles YARA par défaut: {str(e)}")
+            logger.error(f"Erreur lors de la création des règles par défaut: {str(e)}")
             return False
     
     def _create_temp_file(self, artifact):
         """
-        Crée un fichier temporaire à partir d'un artefact pour l'analyse YARA.
+        Crée un fichier temporaire à partir d'un artefact.
         
         Args:
-            artifact (Artifact): Artefact à analyser
+            artifact: Artefact à convertir en fichier
             
         Returns:
-            str: Chemin du fichier temporaire, ou None en cas d'erreur
+            str: Chemin vers le fichier temporaire, ou None en cas d'erreur
         """
         try:
             # Extraire les informations du fichier
             file_path = artifact.data.get("file_path", "")
+            file_name = os.path.basename(file_path)
             file_type = artifact.data.get("type", "")
             
-            # Créer un nom de fichier temporaire basé sur le chemin d'origine
-            file_name = os.path.basename(file_path) or f"artifact_{artifact.id}"
-            # Nettoyer le nom de fichier
-            safe_filename = "".join(c for c in file_name if c.isalnum() or c in "._-")
-            temp_file_path = os.path.join(self.temp_dir, f"{artifact.id}_{safe_filename}")
+            # Créer un nom de fichier temporaire
+            temp_file_path = os.path.join(self.temp_dir, f"{artifact.id}_{file_name}")
             
             # Écrire le contenu dans le fichier temporaire
             if file_type == "text":
                 content = artifact.data.get("content", "")
-                with open(temp_file_path, "w", encoding="utf-8", errors="replace") as f:
+                with open(temp_file_path, 'w', encoding='utf-8', errors='ignore') as f:
                     f.write(content)
-            
             elif file_type == "binary":
                 header_hex = artifact.data.get("header_hex", "")
                 if header_hex:
                     try:
+                        # Convertir l'hexadécimal en binaire
                         binary_data = bytes.fromhex(header_hex)
-                        with open(temp_file_path, "wb") as f:
+                        with open(temp_file_path, 'wb') as f:
                             f.write(binary_data)
-                    except ValueError as e:
-                        logger.warning(f"Données hexadécimales invalides pour {file_path}: {str(e)}")
+                    except:
+                        logger.error(f"Erreur lors de la conversion de l'hexadécimal en binaire pour {file_path}")
                         return None
                 else:
-                    logger.warning(f"Pas de données binaires disponibles pour {file_path}")
+                    logger.warning(f"Pas de données binaires pour {file_path}")
                     return None
-            
             else:
                 logger.warning(f"Type de fichier non pris en charge: {file_type}")
                 return None
@@ -544,17 +726,16 @@ rule Suspicious_PowerShell {
             return temp_file_path
             
         except Exception as e:
-            logger.error(f"Erreur lors de la création du fichier temporaire pour l'artefact {artifact.id}: {str(e)}")
+            logger.error(f"Erreur lors de la création du fichier temporaire: {str(e)}")
             return None
     
     def _cleanup_temp_dir(self):
         """
         Nettoie le répertoire temporaire.
         """
-        if self.temp_dir and os.path.exists(self.temp_dir):
-            try:
-                import shutil
+        try:
+            if self.temp_dir and os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir)
                 logger.debug(f"Répertoire temporaire supprimé: {self.temp_dir}")
-            except Exception as e:
-                logger.warning(f"Erreur lors de la suppression du répertoire temporaire: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Erreur lors du nettoyage du répertoire temporaire: {str(e)}")
