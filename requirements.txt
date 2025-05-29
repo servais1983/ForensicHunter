@@ -35,7 +35,8 @@ pyinstaller>=5.10.1; platform_system == "Windows"
 PyQt5>=5.15.9; platform_system == "Windows"
 
 # Dépendances pour l'analyse de navigateurs
-browserhistory>=0.7.7
+browserhistory==0.1.2
+# Alternative: browser-history>=1.1.0
 pycryptodome>=3.18.0
 
 # Dépendances pour l'analyse mémoire
