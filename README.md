@@ -95,7 +95,10 @@ cd ForensicHunter
 pip install -r requirements.txt
 
 # Lancement de l'interface graphique
-python forensichunter_gui.bat
+forensichunter_fixed.bat
+
+# Ou directement avec Python
+python src/gui/main_gui.py
 
 # Ou utilisation en ligne de commande
 python -m src.main --help
