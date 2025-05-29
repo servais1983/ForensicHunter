@@ -50,6 +50,8 @@ try:
     from src.analyzers.malware_analyzer import MalwareAnalyzer
     from src.analyzers.phishing_analyzer import PhishingAnalyzer
     from src.analyzers.yara_analyzer import YaraAnalyzer
+    from src.analyzers.log_analyzer.log_analyzer import LogAnalyzer
+    from src.analyzers.log_analyzer.csv_analyzer import CSVAnalyzer
     from src.reporters.html_reporter import HTMLReporter
 except ImportError:
     # Si l'import absolu avec src. échoue, essayons sans le préfixe src.
@@ -124,6 +126,8 @@ class ForensicHunterCore:
             self.analyzers["malware"] = MalwareAnalyzer(self.config.get("malware", {}))
             self.analyzers["phishing"] = PhishingAnalyzer(self.config.get("phishing", {}))
             self.analyzers["yara"] = YaraAnalyzer(self.config.get("yara", {}))
+            self.analyzers["log"] = LogAnalyzer(self.config.get("log", {}))
+            self.analyzers["csv"] = CSVAnalyzer(self.config.get("csv", {}))
             self.logger.info("Analyseurs initialisés avec succès")
         except Exception as e:
             self.logger.error(f"Erreur lors de l'initialisation des analyseurs: {str(e)}")
@@ -242,6 +246,20 @@ class ForensicHunterCore:
                 yara_findings = self.analyzers["yara"].analyze(artifacts)
                 findings.extend(yara_findings)
                 self.logger.info(f"{len(yara_findings)} résultats YARA")
+            
+            # Analyse des fichiers logs
+            if options.get("analyze_logs", True):
+                self.logger.info("Analyse des fichiers logs...")
+                log_findings = self.analyzers["log"].analyze(artifacts)
+                findings.extend(log_findings)
+                self.logger.info(f"{len(log_findings)} résultats d'analyse de logs")
+            
+            # Analyse des fichiers CSV
+            if options.get("analyze_csv", True):
+                self.logger.info("Analyse des fichiers CSV...")
+                csv_findings = self.analyzers["csv"].analyze(artifacts)
+                findings.extend(csv_findings)
+                self.logger.info(f"{len(csv_findings)} résultats d'analyse CSV")
             
             results["findings"] = findings
             self.logger.info(f"Analyse terminée: {len(findings)} résultats au total")
@@ -599,6 +617,14 @@ class ForensicHunterGUI(QMainWindow):
         self.yara_checkbox = QCheckBox("Règles YARA")
         self.yara_checkbox.setChecked(True)
         analyzers_layout.addWidget(self.yara_checkbox)
+        
+        self.logs_checkbox = QCheckBox("Analyse des fichiers logs")
+        self.logs_checkbox.setChecked(True)
+        analyzers_layout.addWidget(self.logs_checkbox)
+        
+        self.csv_checkbox = QCheckBox("Analyse des fichiers CSV")
+        self.csv_checkbox.setChecked(True)
+        analyzers_layout.addWidget(self.csv_checkbox)
         
         analyzers_group.setLayout(analyzers_layout)
         options_layout.addWidget(analyzers_group)
@@ -1083,24 +1109,26 @@ class ForensicHunterGUI(QMainWindow):
         
         # Préparer les options d'analyse
         scan_options = {
-            "output_dir": self.config.get("output_dir", os.path.join(root_dir, "results")),
+           # Préparation des options d'analyse
+        options = {
             "case_id": self.case_id_input.text(),
             "case_name": self.case_name_input.text(),
             "analyst": self.analyst_input.text(),
-            "quick_scan": quick,
-            
-            # Collecteurs
+            "output_dir": output_dir,
             "collect_event_logs": self.event_log_checkbox.isChecked(),
             "collect_registry": self.registry_checkbox.isChecked(),
             "collect_filesystem": self.filesystem_checkbox.isChecked(),
+            "filesystem_paths": selected_paths,
             "collect_vmdk": self.vmdk_checkbox.isChecked(),
-            "collect_disks": self.disk_checkbox.isChecked(), # Ajout de l'option disque
-            
-            # Analyseurs
+            "vmdk_path": vmdk_path,
+            "collect_disks": self.disk_checkbox.isChecked(),
+            "disk_ids": selected_disks,
             "analyze_malware": self.malware_checkbox.isChecked(),
             "analyze_phishing": self.phishing_checkbox.isChecked(),
             "analyze_yara": self.yara_checkbox.isChecked(),
-            
+            "analyze_logs": self.logs_checkbox.isChecked(),
+            "analyze_csv": self.csv_checkbox.isChecked()
+        }    
             # Fichiers/Disques à analyser
             "filesystem_paths": [],
             "vmdk_path": None,
