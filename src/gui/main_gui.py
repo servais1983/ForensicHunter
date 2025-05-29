@@ -1109,30 +1109,30 @@ class ForensicHunterGUI(QMainWindow):
         
         # Préparer les options d'analyse
         scan_options = {
-           # Préparation des options d'analyse
-        options = {
+            # Informations sur le cas
             "case_id": self.case_id_input.text(),
             "case_name": self.case_name_input.text(),
             "analyst": self.analyst_input.text(),
             "output_dir": output_dir,
+            
+            # Options de collecte
             "collect_event_logs": self.event_log_checkbox.isChecked(),
             "collect_registry": self.registry_checkbox.isChecked(),
             "collect_filesystem": self.filesystem_checkbox.isChecked(),
-            "filesystem_paths": selected_paths,
             "collect_vmdk": self.vmdk_checkbox.isChecked(),
-            "vmdk_path": vmdk_path,
             "collect_disks": self.disk_checkbox.isChecked(),
-            "disk_ids": selected_disks,
+            
+            # Options d'analyse
             "analyze_malware": self.malware_checkbox.isChecked(),
             "analyze_phishing": self.phishing_checkbox.isChecked(),
             "analyze_yara": self.yara_checkbox.isChecked(),
             "analyze_logs": self.logs_checkbox.isChecked(),
-            "analyze_csv": self.csv_checkbox.isChecked()
-        }    
+            "analyze_csv": self.csv_checkbox.isChecked(),
+            
             # Fichiers/Disques à analyser
-            "filesystem_paths": [],
-            "vmdk_path": None,
-            "disk_ids": self.selected_disks # Ajout des IDs des disques sélectionnés
+            "filesystem_paths": selected_paths,
+            "vmdk_path": vmdk_path,
+            "disk_ids": selected_disks # Ajout des IDs des disques sélectionnés
         }
         
         # Ajouter les fichiers/dossiers sélectionnés
