@@ -1,0 +1,83 @@
+# ForensicHunter - Production Requirements
+# Enterprise-grade digital forensics platform
+
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-multipart==0.0.6
+
+# Database & Storage
+sqlalchemy==2.0.23
+alembic==1.13.0
+redis==5.0.1
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+
+# Security & Authentication
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+cryptography==41.0.7
+pycryptodome==3.19.0
+
+# Forensic Libraries
+volatility3==2.5.2
+yara-python==4.5.0
+python-registry==1.4.0
+python-evtx==0.8.2
+pytsk3==20231007
+pyewf==20231119
+
+# Windows Forensics
+pywin32==306; sys_platform == "win32"
+wmi==1.5.1; sys_platform == "win32"
+psutil==5.9.6
+
+# Memory & Processing
+python-magic==0.4.27
+lz4==4.3.2
+zstandard==0.22.0
+msgpack==1.0.7
+
+# Network & API
+httpx==0.25.2
+websockets==12.0
+aiofiles==23.2.1
+aioredis==2.0.1
+
+# Monitoring & Logging
+structlog==23.2.0
+prometheus-client==0.19.0
+sentry-sdk[fastapi]==1.38.0
+
+# File Processing
+openpyxl==3.1.2
+python-docx==1.1.0
+pymupdf==1.23.8
+pillow==10.1.0
+
+# Utilities
+click==8.1.7
+rich==13.7.0
+tabulate==0.9.0
+jinja2==3.1.2
+python-dateutil==2.8.2
+
+# Testing & Quality (dev)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+black==23.11.0
+ruff==0.1.6
+
+# Container Support
+gunicorn==21.2.0
+docker==6.1.3
+
+# Enterprise Integration
+ldap3==2.9.1
+pyotp==2.9.0
+qrcode==7.4.2
+
+# Performance
