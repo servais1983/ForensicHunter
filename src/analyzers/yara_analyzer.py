@@ -83,19 +83,31 @@ class YaraAnalyzer(BaseAnalyzer):
     
     def _initialize_yara(self):
         """
-        Initialise le module YARA avec gestion d'erreurs robuste.
-        """
-        if not YARA_AVAILABLE:
-            logger.error("Module YARA non disponible")
-            logger.info("Solutions possibles :")
-            logger.info("1. Réinstaller yara-python : pip uninstall yara-python && pip install yara-python")
-            logger.info("2. Installer les Visual C++ Redistributables")
-            logger.info("3. Utiliser conda : conda install -c conda-forge yara-python")
-            self.yara_available = False
-            return
+        Initialise le module YARA et compile les règles.
         
-        self.yara_available = True
-        logger.info("Module YARA initialisé avec succès")
+        Returns:
+            bool: True si l'initialisation a réussi, False sinon
+        """
+        if not self.yara_available:
+            logger.error("Module YARA non disponible")
+            return False
+        
+        try:
+            # Vérifier si le répertoire des règles existe
+            if not os.path.exists(self.rules_dir):
+                logger.error(f"Répertoire des règles YARA non trouvé: {self.rules_dir}")
+                return False
+            
+            # Compiler les règles
+            if not self._compile_rules():
+                logger.error("Échec de la compilation des règles YARA")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'initialisation de YARA: {str(e)}")
+            return False
     
     def _compile_rules(self):
         """
@@ -109,65 +121,19 @@ class YaraAnalyzer(BaseAnalyzer):
             return False
         
         try:
-            # Chercher les fichiers de règles
-            rule_files = []
-            for root, dirs, files in os.walk(self.rules_dir):
-                for file in files:
-                    if file.endswith((".yar", ".yara")):
-                        rule_files.append(os.path.join(root, file))
-            
-            # Ajouter les règles personnalisées
-            for rule_path in self.custom_rules:
-                if os.path.exists(rule_path):
-                    rule_files.append(rule_path)
-            
-            if not rule_files:
-                logger.error("Aucune règle YARA trouvée")
+            # Chercher le fichier all_rules.yar (index global)
+            all_rules_path = os.path.join(self.rules_dir, "all_rules.yar")
+            if not os.path.exists(all_rules_path):
+                logger.error(f"Fichier all_rules.yar non trouvé: {all_rules_path}")
                 return False
             
-            # Compiler les règles une par une
-            compiled_rules = []
-            for rule_file in rule_files:
-                try:
-                    # Vérifier si le fichier existe et est lisible
-                    if not os.path.exists(rule_file) or not os.access(rule_file, os.R_OK):
-                        logger.warning(f"Fichier de règle inaccessible: {rule_file}")
-                        continue
-                    
-                    # Lire le contenu du fichier
-                    with open(rule_file, 'r', encoding='utf-8', errors='ignore') as f:
-                        rule_content = f.read().strip()
-                    
-                    if not rule_content:
-                        logger.warning(f"Fichier de règle vide: {rule_file}")
-                        continue
-                    
-                    # Compiler la règle
-                    try:
-                        rule = self.yara.compile(source=rule_content)
-                        compiled_rules.append(rule)
-                        logger.debug(f"Règle compilée avec succès: {rule_file}")
-                    except Exception as e:
-                        logger.warning(f"Erreur lors de la compilation de la règle {rule_file}: {str(e)}")
-                        continue
-                        
-                except Exception as e:
-                    logger.warning(f"Erreur lors de la lecture de la règle {rule_file}: {str(e)}")
-                    continue
-            
-            if not compiled_rules:
-                logger.error("Aucune règle n'a pu être compilée")
-                return False
-            
-            # Créer un objet Rules qui combine toutes les règles
+            # Compiler toutes les règles via l'index global
             try:
-                self.compiled_rules = self.yara.Rules()
-                for rule in compiled_rules:
-                    self.compiled_rules.add_rule(rule)
-                logger.info(f"{len(compiled_rules)} règles YARA compilées avec succès")
+                self.compiled_rules = self.yara.compile(filepath=all_rules_path)
+                logger.info("Toutes les règles YARA du projet sont compilées via l'index global.")
                 return True
             except Exception as e:
-                logger.error(f"Erreur lors de la combinaison des règles YARA: {str(e)}")
+                logger.error(f"Erreur lors de la compilation de l'index global YARA: {str(e)}")
                 return False
             
         except Exception as e:
@@ -207,202 +173,84 @@ class YaraAnalyzer(BaseAnalyzer):
                 logger.error("Impossible de compiler les règles YARA")
                 return self.findings
         
-        # Créer un répertoire temporaire pour les fichiers à analyser
-        if self.temp_dir and os.path.exists(self.temp_dir):
-            self._cleanup_temp_dir()
-        self.temp_dir = tempfile.mkdtemp(prefix="forensichunter_yara_")
+        # Créer un répertoire temporaire si nécessaire
+        if not self.temp_dir:
+            self.temp_dir = tempfile.mkdtemp(prefix="yara_")
         
-        try:
-            # Filtrer les artefacts pertinents (fichiers)
-            file_artifacts = []
-            for artifact in artifacts:
-                try:
-                    if isinstance(artifact, dict):
-                        if artifact.get("type") == "filesystem":
-                            file_artifacts.append(artifact)
-                    else:
-                        if hasattr(artifact, 'type') and artifact.type == "filesystem":
-                            if hasattr(artifact, 'data') and artifact.data:
-                                if isinstance(artifact.data, dict) and artifact.data.get("type") in ["text", "binary"]:
-                                    file_artifacts.append(artifact)
-                except Exception as e:
-                    logger.warning(f"Erreur lors du filtrage de l'artefact: {str(e)}")
+        # Analyser chaque artefact
+        for artifact in artifacts:
+            try:
+                # Vérifier la taille du fichier
+                if artifact.size > self.max_file_size:
+                    logger.warning(f"Fichier trop grand pour l'analyse YARA: {artifact.path}")
                     continue
-            
-            if not file_artifacts:
-                logger.info("Aucun artefact de type fichier à analyser")
-                return self.findings
-            
-            logger.info(f"Analyse de {len(file_artifacts)} artefacts de type fichier avec YARA...")
-            
-            # Analyser chaque artefact
-            for artifact in file_artifacts:
-                try:
-                    # Extraire les informations du fichier
-                    if isinstance(artifact, dict):
-                        file_path = artifact.get("data", {}).get("file_path", "")
-                        file_type = artifact.get("data", {}).get("type", "")
-                        artifact_id = artifact.get("id", "unknown")
-                    else:
-                        file_path = artifact.data.get("file_path", "") if hasattr(artifact, 'data') else ""
-                        file_type = artifact.data.get("type", "") if hasattr(artifact, 'data') else ""
-                        artifact_id = getattr(artifact, 'id', 'unknown')
-                    
-                    if not file_path or not file_type:
-                        continue
-                    
-                    # Vérifier la taille du fichier
-                    if self._get_artifact_size(artifact) > self.max_file_size:
-                        logger.debug(f"Fichier {file_path} trop volumineux pour l'analyse YARA")
-                        continue
-                    
-                    # Créer un fichier temporaire pour l'analyse
-                    temp_file_path = self._create_temp_file(artifact)
-                    if not temp_file_path or not os.path.exists(temp_file_path):
-                        continue
-                    
-                    try:
-                        # Appliquer les règles YARA
-                        matches = self.compiled_rules.match(temp_file_path)
-                        
-                        # Traiter les correspondances
-                        for match in matches:
-                            try:
-                                rule_name = match.rule
-                                tags = match.tags
-                                meta = match.meta
-                                strings = match.strings
-                                
-                                # Déterminer la sévérité et la confiance
-                                severity = meta.get("severity", "medium")
-                                confidence = meta.get("confidence", 70)
-                                
-                                # Créer un résultat
-                                description = meta.get("description", f"Règle YARA '{rule_name}' correspondante")
-                                
-                                self.add_finding(
-                                    finding_type="yara_match",
-                                    description=description,
-                                    severity=severity,
-                                    confidence=confidence,
-                                    artifacts=[artifact],
-                                    metadata={
-                                        "rule_name": rule_name,
-                                        "tags": list(tags),
-                                        "meta": dict(meta),
-                                        "strings": [(offset, identifier, data.hex()) for offset, identifier, data in strings],
-                                        "file_path": file_path,
-                                        "file_type": file_type
-                                    }
-                                )
-                                
-                                logger.info(f"Correspondance YARA trouvée: {rule_name} dans {file_path}")
-                            except Exception as e:
-                                logger.error(f"Erreur lors du traitement de la correspondance YARA: {str(e)}")
-                                continue
-                    except Exception as e:
-                        logger.error(f"Erreur lors de l'analyse YARA du fichier {file_path}: {str(e)}")
-                        continue
                 
+                # Copier le fichier dans un répertoire temporaire
+                temp_file_path = os.path.join(self.temp_dir, os.path.basename(artifact.path))
+                shutil.copy2(artifact.path, temp_file_path)
+                
+                try:
+                    # Appliquer les règles YARA
+                    matches = self.compiled_rules.match(temp_file_path)
+                    
+                    # Traiter les correspondances
+                    for match in matches:
+                        try:
+                            rule_name = match.rule
+                            tags = match.tags
+                            meta = match.meta
+                            strings = match.strings
+                            
+                            # Déterminer la sévérité et la confiance
+                            severity = meta.get("severity", "medium")
+                            confidence = meta.get("confidence", 70)
+                            
+                            # Créer un résultat
+                            description = meta.get("description", f"Règle YARA '{rule_name}' correspondante")
+                            
+                            self.add_finding(
+                                finding_type="yara_match",
+                                description=description,
+                                severity=severity,
+                                confidence=confidence,
+                                artifacts=[artifact],
+                                metadata={
+                                    "rule_name": rule_name,
+                                    "tags": list(tags),
+                                    "meta": dict(meta),
+                                    "strings": [(offset, identifier, data.hex()) for offset, identifier, data in strings],
+                                    "file_path": artifact.path,
+                                    "file_type": artifact.type
+                                }
+                            )
+                            
+                        except Exception as e:
+                            logger.error(f"Erreur lors du traitement d'une correspondance YARA: {str(e)}")
+                            continue
+                    
                 except Exception as e:
-                    logger.error(f"Erreur lors de l'analyse de l'artefact {artifact_id}: {str(e)}")
+                    logger.error(f"Erreur lors de l'application des règles YARA: {str(e)}")
                     continue
-            
-            logger.info(f"{len([f for f in self.findings if f.finding_type == 'yara_match'])} correspondances YARA trouvées au total")
-            return self.findings
-            
-        except Exception as e:
-            logger.error(f"Erreur générale lors de l'analyse YARA: {str(e)}")
-            return self.findings
-        finally:
-            # Nettoyer le répertoire temporaire
-            self._cleanup_temp_dir()
-    
-    def _get_artifact_size(self, artifact):
-        """
-        Calcule la taille approximative d'un artefact.
-        
-        Args:
-            artifact: Artefact à mesurer
-            
-        Returns:
-            int: Taille approximative en octets
-        """
-        try:
-            if isinstance(artifact, dict):
-                data = artifact.get("data", {})
-            else:
-                data = artifact.data
-            
-            if data.get("type") == "text":
-                content = data.get("content", "")
-                return len(content.encode('utf-8'))
-            elif data.get("type") == "binary":
-                header_hex = data.get("header_hex", "")
-                return len(header_hex) // 2  # 2 caractères hex = 1 octet
-            return 0
-        except:
-            return 0
-    
-    def _create_temp_file(self, artifact):
-        """
-        Crée un fichier temporaire à partir d'un artefact.
-        
-        Args:
-            artifact: Artefact à convertir en fichier
-            
-        Returns:
-            str: Chemin vers le fichier temporaire, ou None en cas d'erreur
-        """
-        try:
-            # Extraire les informations du fichier
-            if isinstance(artifact, dict):
-                data = artifact.get("data", {})
-            else:
-                data = artifact.data
-            
-            file_path = data.get("file_path", "")
-            file_name = os.path.basename(file_path)
-            file_type = data.get("type", "")
-            
-            # Créer un nom de fichier temporaire
-            temp_file_path = os.path.join(self.temp_dir, f"{artifact.id if hasattr(artifact, 'id') else 'unknown'}_{file_name}")
-            
-            # Écrire le contenu dans le fichier temporaire
-            if file_type == "text":
-                content = data.get("content", "")
-                with open(temp_file_path, 'w', encoding='utf-8', errors='ignore') as f:
-                    f.write(content)
-            elif file_type == "binary":
-                header_hex = data.get("header_hex", "")
-                if header_hex:
+                
+                finally:
+                    # Nettoyer le fichier temporaire
                     try:
-                        binary_data = bytes.fromhex(header_hex)
-                        with open(temp_file_path, 'wb') as f:
-                            f.write(binary_data)
+                        os.remove(temp_file_path)
                     except:
-                        logger.error(f"Erreur lors de la conversion de l'hexadécimal en binaire pour {file_path}")
-                        return None
-                else:
-                    logger.warning(f"Pas de données binaires pour {file_path}")
-                    return None
-            else:
-                logger.warning(f"Type de fichier non pris en charge: {file_type}")
-                return None
-            
-            return temp_file_path
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de la création du fichier temporaire: {str(e)}")
-            return None
+                        pass
+                
+            except Exception as e:
+                logger.error(f"Erreur lors de l'analyse YARA d'un artefact: {str(e)}")
+                continue
+        
+        return self.findings
     
-    def _cleanup_temp_dir(self):
+    def cleanup(self):
         """
-        Nettoie le répertoire temporaire.
+        Nettoie les ressources utilisées par l'analyseur.
         """
-        try:
-            if self.temp_dir and os.path.exists(self.temp_dir):
+        if self.temp_dir and os.path.exists(self.temp_dir):
+            try:
                 shutil.rmtree(self.temp_dir)
-                logger.debug(f"Répertoire temporaire supprimé: {self.temp_dir}")
-        except Exception as e:
-            logger.warning(f"Erreur lors du nettoyage du répertoire temporaire: {str(e)}")
+            except:
+                pass
