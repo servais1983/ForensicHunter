@@ -1,88 +1,85 @@
 @echo off
-echo ===================================================
-echo ForensicHunter - Installation
-echo ===================================================
+setlocal enabledelayedexpansion
+
+echo ===================================
+echo Installation de ForensicHunter
+echo ===================================
 echo.
 
-:: Vérification de l'environnement Python
-echo [*] Vérification de l'installation Python...
-python --version > nul 2>&1
-if %errorlevel% neq 0 (
-    echo [!] Python n'est pas installé ou n'est pas dans le PATH.
-    echo [!] Veuillez installer Python 3.8 ou supérieur depuis https://www.python.org/downloads/
+:: Vérifier si Python est installé
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERREUR] Python n'est pas installé ou n'est pas dans le PATH
+    echo Veuillez installer Python 3.8 ou supérieur depuis https://www.python.org/downloads/
     pause
     exit /b 1
 )
 
-:: Vérification des privilèges administrateur
-echo [*] Vérification des privilèges administrateur...
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [!] ATTENTION: Ce script n'est pas exécuté en tant qu'administrateur.
-    echo [!] Certaines fonctionnalités de ForensicHunter pourraient ne pas fonctionner correctement.
-    echo [!] Il est recommandé de relancer ce script en tant qu'administrateur.
-    echo.
-    choice /C YN /M "Voulez-vous continuer quand même"
-    if errorlevel 2 exit /b 1
-)
+:: Vérifier si pip est à jour
+echo Mise à jour de pip...
+python -m pip install --upgrade pip
 
-:: Création d'un environnement virtuel
-echo [*] Création d'un environnement virtuel...
-python -m venv venv
-if %errorlevel% neq 0 (
-    echo [!] Erreur lors de la création de l'environnement virtuel.
-    pause
-    exit /b 1
-)
-
-:: Activation de l'environnement virtuel et installation des dépendances
-echo [*] Installation des dépendances...
-call venv\Scripts\activate.bat
-pip install --upgrade pip
+:: Installer les dépendances Python
+echo Installation des dépendances Python...
 pip install -r requirements.txt
-if %errorlevel% neq 0 (
-    echo [!] Erreur lors de l'installation des dépendances.
+
+:: Installation spécifique de YARA pour Windows
+echo Installation de YARA...
+pip uninstall -y yara-python
+pip install yara-python
+
+:: Vérifier si l'installation de YARA a réussi
+python -c "import yara" >nul 2>&1
+if errorlevel 1 (
+    echo [ATTENTION] L'installation standard de YARA a échoué
+    echo Tentative d'installation via conda...
+    
+    :: Vérifier si conda est installé
+    conda --version >nul 2>&1
+    if errorlevel 1 (
+        echo [ERREUR] Conda n'est pas installé
+        echo Veuillez installer Miniconda depuis https://docs.conda.io/en/latest/miniconda.html
+        pause
+        exit /b 1
+    )
+    
+    :: Installer YARA via conda
+    conda install -y -c conda-forge yara-python
+)
+
+:: Vérifier à nouveau l'installation de YARA
+python -c "import yara" >nul 2>&1
+if errorlevel 1 (
+    echo [ERREUR] L'installation de YARA a échoué
+    echo Veuillez installer manuellement yara-python
     pause
     exit /b 1
 )
 
-:: Installation des dépendances système Windows
-echo [*] Installation des composants système nécessaires...
-pip install pywin32 wmi
-if %errorlevel% neq 0 (
-    echo [!] Avertissement: Certains composants système n'ont pas pu être installés.
-    echo [!] Certaines fonctionnalités pourraient être limitées.
-)
+:: Créer les répertoires nécessaires
+echo Création des répertoires...
+if not exist "results" mkdir results
+if not exist "logs" mkdir logs
 
-:: Vérification des outils externes requis
-echo [*] Vérification des outils externes...
-where /q powershell
-if %errorlevel% neq 0 (
-    echo [!] PowerShell n'est pas disponible. Certaines fonctionnalités seront limitées.
-)
+:: Vérifier les permissions
+echo Vérification des permissions...
+icacls "results" /grant Users:(OI)(CI)F >nul 2>&1
+icacls "logs" /grant Users:(OI)(CI)F >nul 2>&1
 
-:: Création du lanceur
-echo [*] Création du lanceur ForensicHunter...
-echo @echo off > forensichunter.bat
-echo call venv\Scripts\activate.bat >> forensichunter.bat
-echo set PYTHONPATH=%%CD%% >> forensichunter.bat
-echo python src\forensichunter.py %%* >> forensichunter.bat
-echo deactivate >> forensichunter.bat
+:: Compiler les règles YARA
+echo Compilation des règles YARA...
+python -c "from src.analyzers.yara_analyzer import YaraAnalyzer; YaraAnalyzer()._compile_rules()"
 
-:: Création du lanceur GUI
-echo [*] Création du lanceur GUI...
-echo @echo off > forensichunter_gui.bat
-echo call venv\Scripts\activate.bat >> forensichunter_gui.bat
-echo set PYTHONPATH=%%CD%% >> forensichunter_gui.bat
-echo python src\gui\main_gui.py >> forensichunter_gui.bat
-echo deactivate >> forensichunter_gui.bat
-
-:: Finalisation
 echo.
-echo [+] Installation terminée avec succès!
-echo [+] Vous pouvez maintenant lancer ForensicHunter avec les commandes:
-echo [+] forensichunter.bat --help (pour l'interface en ligne de commande)
-echo [+] forensichunter_gui.bat (pour l'interface graphique)
+echo ===================================
+echo Installation terminée !
+echo ===================================
 echo.
-echo ===================================================
+echo Pour lancer ForensicHunter :
+echo 1. En mode console : python src/forensichunter.py
+echo 2. En mode GUI : python src/forensichunter.py --gui
+echo.
+echo Pour plus d'informations, consultez le README.md
+echo.
+
 pause

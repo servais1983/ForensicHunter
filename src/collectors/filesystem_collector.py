@@ -40,37 +40,125 @@ class FileSystemCollector(BaseCollector):
             r"C:\Windows\System32\winevt\Logs",
             r"C:\Windows\System32\drivers\etc\hosts",
             r"C:\Windows\System32\Tasks",
+            r"C:\Windows\System32\winevt\Logs",
+            r"C:\Windows\System32\wbem\Repository",
+            r"C:\Windows\System32\drivers",
+            r"C:\Windows\System32\LogFiles",
+            r"C:\Windows\System32\config\systemprofile",
+            r"C:\Windows\System32\config\RegBack",
+            
             # Fichiers temporaires
             r"C:\Windows\Temp",
             r"C:\Users\*\AppData\Local\Temp",
+            r"C:\Windows\Prefetch",
+            r"C:\Windows\SoftwareDistribution\Download",
+            
             # Historique des navigateurs
             r"C:\Users\*\AppData\Local\Google\Chrome\User Data\Default\History",
+            r"C:\Users\*\AppData\Local\Google\Chrome\User Data\Default\Cookies",
+            r"C:\Users\*\AppData\Local\Google\Chrome\User Data\Default\Login Data",
             r"C:\Users\*\AppData\Local\Mozilla\Firefox\Profiles\*\places.sqlite",
+            r"C:\Users\*\AppData\Local\Mozilla\Firefox\Profiles\*\cookies.sqlite",
             r"C:\Users\*\AppData\Local\Microsoft\Edge\User Data\Default\History",
+            r"C:\Users\*\AppData\Local\Microsoft\Edge\User Data\Default\Cookies",
+            r"C:\Users\*\AppData\Local\Microsoft\Edge\User Data\Default\Login Data",
+            r"C:\Users\*\AppData\Local\Microsoft\Windows\WebCache\WebCacheV01.dat",
+            
             # Fichiers de démarrage
             r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup",
             r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup",
-            # Fichiers de préfetch
-            r"C:\Windows\Prefetch\*.pf",
+            r"C:\Windows\Tasks",
+            r"C:\Windows\System32\Tasks",
+            
             # Fichiers récents
             r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations",
+            
             # Fichiers PowerShell
             r"C:\Users\*\Documents\WindowsPowerShell\*.ps1",
             r"C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1",
-            # Fichiers de planification
-            r"C:\Windows\Tasks",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt",
+            
             # Fichiers de journalisation
             r"C:\Windows\debug\*.log",
             r"C:\Windows\Logs\*",
+            r"C:\Windows\System32\winevt\Logs\*.evtx",
+            
             # Fichiers de configuration
-            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\*.automaticDestinations-ms",
+            
+            # Dossiers utilisateurs importants
+            r"C:\Users\*\Desktop",
+            r"C:\Users\*\Documents",
+            r"C:\Users\*\Downloads",
+            r"C:\Users\*\Pictures",
+            r"C:\Users\*\Videos",
+            r"C:\Users\*\Music",
+            r"C:\Users\*\AppData\Roaming",
+            r"C:\Users\*\AppData\Local",
+            r"C:\Users\*\AppData\LocalLow",
+            r"C:\Users\*\Favorites",
+            r"C:\Users\*\Contacts",
+            r"C:\Users\*\Links",
+            r"C:\Users\*\Saved Games",
+            r"C:\Users\*\Searches",
+            
+            # Fichiers système supplémentaires
+            r"C:\Windows\System32\config\SAM",
+            r"C:\Windows\System32\config\SECURITY",
+            r"C:\Windows\System32\config\SOFTWARE",
+            r"C:\Windows\System32\config\SYSTEM",
+            r"C:\Windows\System32\config\DEFAULT",
+            r"C:\Windows\System32\config\RegBack\*",
+            
+            # Fichiers de mise à jour
+            r"C:\Windows\SoftwareDistribution\ReportingEvents.log",
+            r"C:\Windows\WindowsUpdate.log",
+            
+            # Fichiers de sécurité
+            r"C:\Windows\System32\config\RegBack\*",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetCache",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetCookies",
+            
+            # Fichiers de cache
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetCache",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetCookies",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetHistory",
+            
+            # Fichiers de configuration réseau
+            r"C:\Windows\System32\drivers\etc\hosts",
+            r"C:\Windows\System32\drivers\etc\networks",
+            r"C:\Windows\System32\drivers\etc\protocol",
+            r"C:\Windows\System32\drivers\etc\services",
+            
+            # Fichiers de configuration système
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\Explorer",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\History",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetCache",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetCookies",
+            r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\INetHistory",
+            
+            # Fichiers de configuration utilisateur
+            r"C:\Users\*\AppData\Local\Microsoft\Windows\Explorer",
+            r"C:\Users\*\AppData\Local\Microsoft\Windows\History",
+            r"C:\Users\*\AppData\Local\Microsoft\Windows\INetCache",
+            r"C:\Users\*\AppData\Local\Microsoft\Windows\INetCookies",
+            r"C:\Users\*\AppData\Local\Microsoft\Windows\INetHistory",
+            
+            # Fichiers de configuration d'application
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\*.automaticDestinations-ms",
+            r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations\*.customDestinations-ms"
         ])
-        self.max_file_size = self.config.get("max_file_size", 10 * 1024 * 1024)  # 10 MB
+        self.max_file_size = self.config.get("max_file_size", 50 * 1024 * 1024)  # 50 MB
         self.hash_algorithms = self.config.get("hash_algorithms", ["md5", "sha1", "sha256"])
         self.collect_metadata = self.config.get("collect_metadata", True)
         self.collect_content = self.config.get("collect_content", True)
         self.follow_symlinks = self.config.get("follow_symlinks", False)
-        self.max_files = self.config.get("max_files", 1000)
+        self.max_files = self.config.get("max_files", 10000)  # Augmenté à 10000 fichiers
     
     def get_name(self):
         """
