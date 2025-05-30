@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport d'analyse forensique - ForensicHunter</title>
+    <link rel="stylesheet" href="assets/css/report.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="">
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <img src="assets/img/logo.svg" alt="ForensicHunter" class="logo">
+                <h1 class="report-title">Rapport d'analyse forensique - ForensicHunter</h1>
+                <button id="themeToggle">🌙 Mode sombre</button>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <section class="case-info">
+            <h2>Informations sur le cas</h2>
+            <div class="case-details">
+                <div class="case-detail-item">
+                    <span class="case-detail-label">ID du cas:</span>
+                    <span>FH-20250530-140556</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Nom du cas:</span>
+                    <span>Analyse forensique</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Analyste:</span>
+                    <span>ForensicHunter</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Date:</span>
+                    <span>2025-05-30 14:06:03</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Total des résultats:</span>
+                    <span>3</span>
+                </div>
+                <div class="case-detail-item">
+                    <span class="case-detail-label">Total des artefacts:</span>
+                    <span>154</span>
+                </div>
+            </div>
+        </section>
+        
+        <section class="stats-section">
+            <div class="stat-card">
+                <h3>Résultats par sévérité</h3>
+                <div class="severity-chart">
+                    <canvas id="severityChart" data-values='{"critical": 0, "high": 3, "medium": 0, "low": 0, "info": 0}'></canvas>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Résultats par type</h3>
+                <div class="type-chart">
+                    <canvas id="typeChart" data-values='{"backdoor": 2, "phishing_corporate": 1}'></canvas>
+                </div>
+            </div>
+        </section>
+        
+        <section class="findings-section">
+            <h2>Résultats d'analyse</h2>
+            
+            <div class="findings-filters">
+                <button class="filter-button active" data-filter="all">Tous</button>
+                <button class="filter-button" data-filter="critical">Critique</button>
+                <button class="filter-button" data-filter="high">Élevé</button>
+                <button class="filter-button" data-filter="medium">Moyen</button>
+                <button class="filter-button" data-filter="low">Faible</button>
+                <button class="filter-button" data-filter="info">Info</button>
+                
+                <input type="text" id="searchInput" placeholder="Rechercher..." onkeyup="searchFindings()">
+            </div>
+
+            <div class="finding-card" data-severity="high" data-type="backdoor">
+                <div class="finding-header">
+                    <div>
+                        <h3 class="finding-title">Clé de registre associée à Generic Backdoor détectée: winreg_HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run</h3>
+                        <span class="finding-type">Backdoor</span>
+                    </div>
+                    <div class="finding-badges">
+                        <span class="severity-badge severity-high">HIGH</span>
+                        <span class="confidence-badge confidence-medium">Confiance: 70%</span>
+                    </div>
+                </div>
+                <div class="finding-metadata">
+                    <strong>ID:</strong> 87e7fb08-573b-4a34-affe-85b00fa1c429
+                    <strong>Timestamp:</strong> 2025-05-30T14:06:03.076840
+                    <strong>Métadonnées:</strong> {
+  "malware_name": "Generic Backdoor",
+  "registry_key": "winreg_HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+  "pattern": "HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run"
+}
+                </div>
+
+            </div>
+
+            <div class="finding-card" data-severity="high" data-type="backdoor">
+                <div class="finding-header">
+                    <div>
+                        <h3 class="finding-title">Clé de registre associée à Generic Backdoor détectée: winreg_HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run</h3>
+                        <span class="finding-type">Backdoor</span>
+                    </div>
+                    <div class="finding-badges">
+                        <span class="severity-badge severity-high">HIGH</span>
+                        <span class="confidence-badge confidence-medium">Confiance: 70%</span>
+                    </div>
+                </div>
+                <div class="finding-metadata">
+                    <strong>ID:</strong> 1a2dd775-c6f3-4259-94be-272347059f2e
+                    <strong>Timestamp:</strong> 2025-05-30T14:06:03.076840
+                    <strong>Métadonnées:</strong> {
+  "malware_name": "Generic Backdoor",
+  "registry_key": "winreg_HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+  "pattern": "HKCU\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run"
+}
+                </div>
+
+            </div>
+
+            <div class="finding-card" data-severity="high" data-type="phishing_corporate">
+                <div class="finding-header">
+                    <div>
+                        <h3 class="finding-title">Motif de Corporate Credentials Phishing détecté dans Generic registry</h3>
+                        <span class="finding-type">Phishing Corporate</span>
+                    </div>
+                    <div class="finding-badges">
+                        <span class="severity-badge severity-high">HIGH</span>
+                        <span class="confidence-badge confidence-medium">Confiance: 70%</span>
+                    </div>
+                </div>
+                <div class="finding-metadata">
+                    <strong>ID:</strong> 23c67665-acc4-4da4-8375-ac7e713bdc6b
+                    <strong>Timestamp:</strong> 2025-05-30T14:06:03.133578
+                    <strong>Métadonnées:</strong> {
+  "pattern": "VPN.*access",
+  "source_type": "Generic registry",
+  "phishing_type": "Corporate Credentials Phishing"
+}
+                </div>
+
+                <div class="artifacts-section">
+                    <h4 class="collapsible">Artefacts associés (1)</h4>
+                    <div class="collapsible-content">
+
+                    <div class="artifact-item">
+                        <div class="artifact-header">
+                            <span>Registry</span>
+                            <span class="artifact-source">winreg_HKLM\SOFTWARE\Microsoft\WBEM\CIMOM</span>
+                        </div>
+                        <div class="artifact-preview">ADAPDelay = 240 (4)
+AllowAnonymousCallback = 0 (4)
+Autorecover MOFs = ['', '%ProgramFiles%\\windows defender\\clientwmiinstall.mof', '%ProgramFiles%\\windows defender\\pr (7)
+Autorecover MOFs timestamp = 133821811126131808 (1)
+AutoRestoreEnabled = 1 (4)
+ConfigValueCoreDatabaseDirty = 0 (4)
+ConfigValueCoreFsrepVersion = 6 (4)
+ConfigValueCoreNeedBackupCheck = 0 (4)
+ConfigValueEssNeedsLoading = 1 (4)
+ConfigValueEssToBeInitialized = 0 (4)
+Default Repository Driver = {7998dc37-d3fe-487c-a60a-7701fcc7...</div>
+                    </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>Rapport généré par ForensicHunter le 2025-05-30 14:06:03</p>
+            <p>&copy; 2025 ForensicHunter. Tous droits réservés.</p>
+        </div>
+    </footer>
+    
+    <script src="assets/js/report.js"></script>
+</body>
+</html>
