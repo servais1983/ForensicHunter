@@ -23,14 +23,6 @@ from .base_analyzer import BaseAnalyzer, Finding
 # Configuration du logger
 logger = logging.getLogger("forensichunter.analyzers.yara")
 
-# Importation conditionnelle de YARA
-try:
-    import yara  # type: ignore
-    YARA_AVAILABLE = True
-except ImportError:
-    YARA_AVAILABLE = False
-    logger.warning("Module YARA non disponible. L'analyseur YARA ne fonctionnera pas.")
-
 class YaraAnalyzer(BaseAnalyzer):
     """Analyseur basé sur des règles YARA."""
     
@@ -45,14 +37,11 @@ class YaraAnalyzer(BaseAnalyzer):
         self.rules_dir = self.config.get("rules_dir", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "rules"))
         self.custom_rules = self.config.get("custom_rules", [])
         self.max_file_size = self.config.get("max_file_size", 50 * 1024 * 1024)  # 50 MB
-        self.compiled_rules = None
         self.temp_dir = None
-        self.yara_available = YARA_AVAILABLE
-        self.yara = yara if YARA_AVAILABLE else None
-        self.valid_rules_dir = None
+        self.rules = {}
         
-        # Tentative d'initialisation de YARA
-        self._initialize_yara()
+        # Charger les règles
+        self._load_rules()
     
     def get_name(self):
         """
@@ -72,73 +61,133 @@ class YaraAnalyzer(BaseAnalyzer):
         """
         return "Analyseur basé sur des règles YARA pour la détection de menaces connues"
     
-    def is_available(self):
+    def _load_rules(self):
         """
-        Vérifie si l'analyseur est disponible.
+        Charge les règles YARA depuis les fichiers.
         
         Returns:
-            bool: True si YARA est disponible, False sinon
+            bool: True si le chargement a réussi, False sinon
         """
-        return self.yara_available
-    
-    def _initialize_yara(self):
-        """
-        Initialise le module YARA et compile les règles.
-        
-        Returns:
-            bool: True si l'initialisation a réussi, False sinon
-        """
-        if not self.yara_available:
-            logger.error("Module YARA non disponible")
-            return False
-        
         try:
             # Vérifier si le répertoire des règles existe
             if not os.path.exists(self.rules_dir):
                 logger.error(f"Répertoire des règles YARA non trouvé: {self.rules_dir}")
                 return False
             
-            # Compiler les règles
-            if not self._compile_rules():
-                logger.error("Échec de la compilation des règles YARA")
-                return False
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de l'initialisation de YARA: {str(e)}")
-            return False
-    
-    def _compile_rules(self):
-        """
-        Compile les règles YARA.
-        
-        Returns:
-            bool: True si la compilation a réussi, False sinon
-        """
-        if not self.yara_available or not self.yara:
-            logger.error("Module YARA non disponible")
-            return False
-        
-        try:
-            # Chercher le fichier all_rules.yar (index global)
+            # Charger le fichier all_rules.yar
             all_rules_path = os.path.join(self.rules_dir, "all_rules.yar")
             if not os.path.exists(all_rules_path):
                 logger.error(f"Fichier all_rules.yar non trouvé: {all_rules_path}")
                 return False
             
-            # Compiler toutes les règles via l'index global
-            try:
-                self.compiled_rules = self.yara.compile(filepath=all_rules_path)
-                logger.info("Toutes les règles YARA du projet sont compilées via l'index global.")
-                return True
-            except Exception as e:
-                logger.error(f"Erreur lors de la compilation de l'index global YARA: {str(e)}")
-                return False
+            # Lire le contenu du fichier
+            with open(all_rules_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Extraire les règles
+            rule_pattern = r'rule\s+(\w+)\s*{([^}]+)}'
+            matches = re.finditer(rule_pattern, content, re.DOTALL)
+            
+            for match in matches:
+                rule_name = match.group(1)
+                rule_content = match.group(2)
+                self.rules[rule_name] = rule_content
+            
+            logger.info(f"{len(self.rules)} règles YARA chargées avec succès")
+            return True
             
         except Exception as e:
-            logger.error(f"Erreur lors de la compilation des règles YARA: {str(e)}")
+            logger.error(f"Erreur lors du chargement des règles YARA: {str(e)}")
             return False
+    
+    def _match_rule(self, content, rule_name, rule_content):
+        """
+        Applique une règle YARA à un contenu.
+        
+        Args:
+            content (str): Contenu à analyser
+            rule_name (str): Nom de la règle
+            rule_content (str): Contenu de la règle
+            
+        Returns:
+            dict: Résultat de la correspondance ou None
+        """
+        try:
+            # Extraire les chaînes simples et regex
+            strings_pattern = r'\$(\w+)\s*=\s*(?:"([^"]+)"|/(.*?)/)'
+            strings = re.findall(strings_pattern, rule_content, re.DOTALL)
+            
+            # Extraire la condition
+            condition_pattern = r'condition:\s*(.+)'
+            condition_match = re.search(condition_pattern, rule_content)
+            if not condition_match:
+                return None
+            condition = condition_match.group(1).strip()
+            
+            # Vérifier les correspondances
+            matches = []
+            for string_name, string_value, regex_value in strings:
+                if string_value:
+                    if string_value in content:
+                        matches.append((string_name, string_value))
+                elif regex_value:
+                    if re.search(regex_value, content, re.DOTALL):
+                        matches.append((string_name, f"/{regex_value}/"))
+            # Évaluer la condition
+            if "any of them" in condition and matches:
+                return {
+                    "rule_name": rule_name,
+                    "matches": matches,
+                    "meta": self._extract_meta(rule_content)
+                }
+            elif "all of them" in condition and len(matches) == len(strings):
+                return {
+                    "rule_name": rule_name,
+                    "matches": matches,
+                    "meta": self._extract_meta(rule_content)
+                }
+            elif "all of ($protocol*)" in condition and len(matches) >= 3:
+                # Cas particulier pour les anciennes règles Zeus
+                return {
+                    "rule_name": rule_name,
+                    "matches": matches,
+                    "meta": self._extract_meta(rule_content)
+                }
+            elif "all of them" in condition and len(matches) >= 1 and len(matches) == len(strings):
+                return {
+                    "rule_name": rule_name,
+                    "matches": matches,
+                    "meta": self._extract_meta(rule_content)
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Erreur lors de l'application de la règle {rule_name}: {str(e)}")
+            return None
+    
+    def _extract_meta(self, rule_content):
+        """
+        Extrait les métadonnées d'une règle.
+        
+        Args:
+            rule_content (str): Contenu de la règle
+            
+        Returns:
+            dict: Métadonnées extraites
+        """
+        meta = {}
+        meta_pattern = r'meta:\s*([^}]+)'
+        meta_match = re.search(meta_pattern, rule_content)
+        
+        if meta_match:
+            meta_content = meta_match.group(1)
+            meta_lines = meta_content.split('\n')
+            for line in meta_lines:
+                line = line.strip()
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    meta[key.strip()] = value.strip().strip('"')
+        
+        return meta
     
     def analyze(self, artifacts):
         """
@@ -152,27 +201,6 @@ class YaraAnalyzer(BaseAnalyzer):
         """
         self.clear_findings()
         
-        if not self.yara_available:
-            logger.warning("Module YARA non disponible. Analyse ignorée.")
-            self.add_finding(
-                finding_type="yara_unavailable",
-                description="Module YARA non disponible - analyse YARA ignorée",
-                severity="info",
-                confidence=100,
-                artifacts=[],
-                metadata={
-                    "reason": "yara_module_not_available",
-                    "recommendation": "Réinstaller yara-python ou utiliser conda install -c conda-forge yara-python"
-                }
-            )
-            return self.findings
-        
-        # Vérifier si les règles sont compilées
-        if not self.compiled_rules:
-            if not self._compile_rules():
-                logger.error("Impossible de compiler les règles YARA")
-                return self.findings
-        
         # Créer un répertoire temporaire si nécessaire
         if not self.temp_dir:
             self.temp_dir = tempfile.mkdtemp(prefix="yara_")
@@ -181,64 +209,40 @@ class YaraAnalyzer(BaseAnalyzer):
         for artifact in artifacts:
             try:
                 # Vérifier la taille du fichier
-                if artifact.size > self.max_file_size:
-                    logger.warning(f"Fichier trop grand pour l'analyse YARA: {artifact.path}")
+                size = 0
+                if hasattr(artifact, 'metadata') and artifact.metadata:
+                    size = artifact.metadata.get('size', 0)
+                if size > self.max_file_size:
+                    logger.warning(f"Fichier trop grand pour l'analyse YARA: {getattr(artifact, 'source', getattr(artifact, 'path', ''))}")
                     continue
-                
-                # Copier le fichier dans un répertoire temporaire
-                temp_file_path = os.path.join(self.temp_dir, os.path.basename(artifact.path))
-                shutil.copy2(artifact.path, temp_file_path)
-                
-                try:
-                    # Appliquer les règles YARA
-                    matches = self.compiled_rules.match(temp_file_path)
-                    
-                    # Traiter les correspondances
-                    for match in matches:
-                        try:
-                            rule_name = match.rule
-                            tags = match.tags
-                            meta = match.meta
-                            strings = match.strings
-                            
-                            # Déterminer la sévérité et la confiance
-                            severity = meta.get("severity", "medium")
-                            confidence = meta.get("confidence", 70)
-                            
-                            # Créer un résultat
-                            description = meta.get("description", f"Règle YARA '{rule_name}' correspondante")
-                            
-                            self.add_finding(
-                                finding_type="yara_match",
-                                description=description,
-                                severity=severity,
-                                confidence=confidence,
-                                artifacts=[artifact],
-                                metadata={
-                                    "rule_name": rule_name,
-                                    "tags": list(tags),
-                                    "meta": dict(meta),
-                                    "strings": [(offset, identifier, data.hex()) for offset, identifier, data in strings],
-                                    "file_path": artifact.path,
-                                    "file_type": artifact.type
-                                }
-                            )
-                            
-                        except Exception as e:
-                            logger.error(f"Erreur lors du traitement d'une correspondance YARA: {str(e)}")
-                            continue
-                    
-                except Exception as e:
-                    logger.error(f"Erreur lors de l'application des règles YARA: {str(e)}")
+
+                # Utiliser le contenu déjà présent dans artifact.data
+                content = artifact.data if isinstance(artifact.data, str) else ''
+                if not content:
+                    logger.warning(f"Aucun contenu à analyser pour l'artefact: {getattr(artifact, 'source', getattr(artifact, 'path', ''))}")
                     continue
-                
-                finally:
-                    # Nettoyer le fichier temporaire
-                    try:
-                        os.remove(temp_file_path)
-                    except:
-                        pass
-                
+
+                # Appliquer chaque règle
+                for rule_name, rule_content in self.rules.items():
+                    match_result = self._match_rule(content, rule_name, rule_content)
+                    if match_result:
+                        meta = match_result["meta"]
+                        severity = meta.get("severity", "medium")
+                        confidence = int(meta.get("confidence", 70))
+                        self.add_finding(
+                            finding_type="yara_match",
+                            description=meta.get("description", f"Règle YARA '{rule_name}' correspondante"),
+                            severity=severity,
+                            confidence=confidence,
+                            artifacts=[artifact],
+                            metadata={
+                                "rule_name": rule_name,
+                                "meta": meta,
+                                "matches": match_result["matches"],
+                                "file_path": getattr(artifact, 'source', getattr(artifact, 'path', '')),
+                                "file_type": getattr(artifact, 'type', None)
+                            }
+                        )
             except Exception as e:
                 logger.error(f"Erreur lors de l'analyse YARA d'un artefact: {str(e)}")
                 continue

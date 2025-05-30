@@ -197,6 +197,33 @@ rule Capability_Keylogger {
         2 of them
 }
 
+rule WebShell_Test {
+    meta:
+        description = "WebShell PHP ultra-flexible (pour tests)"
+        author = "ForensicHunter"
+        date = "2024"
+    strings:
+        $php_shell1 = /<\?php\s*system\s*\(\s*\$_GET\s*\[\s*['\"]cmd['\"]\s*\]\s*\)\s*;\s*\?>/
+        $php_shell2 = /<\?php\n*system\s*\(\s*\$_GET\s*\[\s*['\"]cmd['\"]\s*\]\s*\)\s*;\n*\?>/
+    condition:
+        any of them
+}
+
+rule Zeus_Test {
+    meta:
+        description = "Zeus test très permissif (pour tests)"
+        author = "ForensicHunter"
+        date = "2024"
+    strings:
+        $protocol1 = "X_ID: "
+        $protocol2 = "X_OS: "
+        $protocol3 = "X_BV: "
+        $stringR1 = "InitializeSecurityDescriptor"
+        $stringR2 = "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1)"
+    condition:
+        all of them
+}
+
 /*
 Index global de toutes les règles YARA du projet
 */
