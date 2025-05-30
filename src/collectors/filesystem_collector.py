@@ -2,17 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Module de collecte des artefacts du système de fichiers Windows révolutionnaire.
-Collecteur ultra-avancé qui surpasse KAPE en performance, couverture et intelligence.
+Module de collecte des artefacts du système de fichiers Windows.
 
-Ce module implémente des techniques révolutionnaires de scan forensique :
-- Intelligence artificielle pour la sélection de fichiers
-- Scan parallèle multi-threadé ultra-optimisé
-- Déduplication intelligente en temps réel
-- Analyse heuristique des métadonnées
-- Détection proactive des artefacts cachés
-- Optimisations spécifiques Windows 10/11
-- Techniques anti-évasion avancées
+Ce module permet de collecter les fichiers et dossiers importants
+du système de fichiers Windows pour analyse forensique professionnelle.
 """
 
 import os
@@ -22,19 +15,13 @@ import threading
 import time
 import fnmatch
 import hashlib
-import sqlite3
-import pickle
-import zlib
-from datetime import datetime, timedelta
-from pathlib import Path, WindowsPath
-from typing import Dict, List, Optional, Set, Tuple, Generator
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-from collections import defaultdict, deque
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import defaultdict
 import re
 import json
-import mmap
-import ctypes
-from ctypes import wintypes
 import stat
 
 # Imports Windows spécifiques
@@ -42,289 +29,224 @@ try:
     import win32security
     import win32api
     import win32file
-    import win32con
-    import wmi
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
-    logging.warning("Modules win32 non disponibles. Fonctionnalités Windows réduites.")
+    logging.warning("Modules win32 non disponibles. Fonctionnalités Windows limitées.")
 
 try:
     import psutil
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
-    logging.warning("Module psutil non disponible. Monitoring système réduit.")
 
 from .base_collector import BaseCollector
 
-# Configuration du logger spécialisé
-logger = logging.getLogger("forensichunter.collectors.revolutionary_filesystem")
+# Configuration du logger
+logger = logging.getLogger("forensichunter.collectors.filesystem")
 
-class RevolutionaryFileSystemCollector(BaseCollector):
-    """Collecteur révolutionnaire qui surpasse KAPE dans tous les domaines."""
+class FileSystemCollector(BaseCollector):
+    """Collecteur professionnel d'artifacts du système de fichiers Windows."""
     
     def __init__(self, config=None):
         """
-        Initialise le collecteur révolutionnaire.
+        Initialise le collecteur de système de fichiers.
         
         Args:
-            config (dict, optional): Configuration avancée du collecteur
+            config (dict, optional): Configuration du collecteur
         """
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         
-        # Statistiques avancées
+        # Configuration professionnelle
+        self.max_threads = min(16, (os.cpu_count() or 4) * 2)
+        self.max_file_size = config.get('max_file_size', 1024 * 1024 * 1024) if config else 1024 * 1024 * 1024  # 1GB
+        self.max_total_size = config.get('max_total_size', 10 * 1024 * 1024 * 1024) if config else 10 * 1024 * 1024 * 1024  # 10GB
+        
+        # Statistiques de collecte
         self.stats = {
-            'files_discovered': 0,
-            'files_analyzed': 0,
+            'files_processed': 0,
             'files_collected': 0,
             'directories_scanned': 0,
-            'hidden_artifacts_found': 0,
-            'deduplication_saves': 0,
-            'ai_predictions': 0,
-            'performance_optimizations': 0,
             'bytes_processed': 0,
+            'errors': 0,
+            'duplicates_found': 0,
             'start_time': None,
             'end_time': None
         }
         
-        # Configuration révolutionnaire
-        self.max_threads = min(32, (os.cpu_count() or 4) * 4)
-        self.max_file_size = config.get('max_file_size', 2 * 1024 * 1024 * 1024) if config else 2 * 1024 * 1024 * 1024  # 2GB
-        self.max_total_size = config.get('max_total_size', 50 * 1024 * 1024 * 1024) if config else 50 * 1024 * 1024 * 1024  # 50GB
-        self.enable_ai_selection = config.get('enable_ai', True) if config else True
-        self.enable_deep_scan = config.get('deep_scan', True) if config else True
-        self.enable_shadow_copies = config.get('shadow_copies', True) if config else True
+        # Cache pour éviter les doublons
+        self.file_hashes = set()
+        self.processed_paths = set()
         
-        # Cache intelligent et déduplication
-        self.file_cache = {}
-        self.hash_cache = {}
-        self.metadata_cache = {}
-        self.visited_paths = set()
-        
-        # Threads et synchronisation
-        self.cache_lock = threading.RLock()
+        # Synchronisation pour threading
         self.stats_lock = threading.Lock()
-        self.collection_queue = deque()
+        self.cache_lock = threading.Lock()
         
-        # Base de connaissances révolutionnaire
-        self.forensic_intelligence = self._initialize_forensic_intelligence()
+        # Targets forensiques professionnels
+        self.forensic_targets = self._initialize_forensic_targets()
         
-        # Patterns de détection avancés
-        self.advanced_patterns = self._initialize_advanced_patterns()
-        
-        # Optimisations système
-        self._optimize_system_performance()
-        
-        self.logger.info("🚀 Collecteur révolutionnaire initialisé avec succès")
+        self.logger.info("Collecteur de système de fichiers initialisé")
 
-    def _initialize_forensic_intelligence(self):
-        """Initialise la base de connaissances d'intelligence forensique."""
+    def _initialize_forensic_targets(self):
+        """Initialise les cibles forensiques Windows standards."""
         return {
-            # Artefacts critiques NTFS
-            "ntfs_critical": {
+            # Artefacts système critiques
+            "system_critical": {
                 "paths": [
-                    r"C:\$MFT", r"C:\$LogFile", r"C:\$Volume", r"C:\$AttrDef",
-                    r"C:\$Bitmap", r"C:\$Boot", r"C:\$BadClus", r"C:\$Secure",
-                    r"C:\$UpCase", r"C:\$Extend\$ObjId", r"C:\$Extend\$Quota",
-                    r"C:\$Extend\$Reparse", r"C:\$Extend\$UsnJrnl"
+                    r"C:\Windows\System32\config\SAM",
+                    r"C:\Windows\System32\config\SECURITY", 
+                    r"C:\Windows\System32\config\SOFTWARE",
+                    r"C:\Windows\System32\config\SYSTEM",
+                    r"C:\Windows\System32\config\DEFAULT",
+                    r"C:\Windows\System32\config\RegBack\*"
                 ],
-                "priority": 10,
-                "description": "Artefacts critiques du système de fichiers NTFS"
+                "priority": "HIGH",
+                "description": "Ruches de registre Windows"
             },
             
-            # Registre Windows complet
-            "registry_hives": {
+            # Journaux d'événements
+            "event_logs": {
                 "paths": [
-                    r"C:\Windows\System32\config\SAM*",
-                    r"C:\Windows\System32\config\SECURITY*", 
-                    r"C:\Windows\System32\config\SOFTWARE*",
-                    r"C:\Windows\System32\config\SYSTEM*",
-                    r"C:\Windows\System32\config\DEFAULT*",
-                    r"C:\Windows\System32\config\COMPONENTS*",
-                    r"C:\Windows\System32\config\DRIVERS*",
-                    r"C:\Windows\System32\config\ELAM*",
-                    r"C:\Windows\System32\config\BBI*",
-                    r"C:\Windows\System32\config\RegBack\**",
-                    r"C:\Users\**\NTUSER.DAT*",
-                    r"C:\Users\**\UsrClass.dat*"
+                    r"C:\Windows\System32\winevt\Logs\*.evtx"
                 ],
-                "priority": 9,
-                "description": "Ruches du registre Windows complètes"
+                "priority": "HIGH", 
+                "description": "Journaux d'événements Windows"
             },
             
-            # Journaux d'événements étendus
-            "event_logs_extended": {
+            # Prefetch
+            "prefetch": {
                 "paths": [
-                    r"C:\Windows\System32\winevt\Logs\*.evtx",
-                    r"C:\Users\**\AppData\Local\Microsoft\Windows\History\*.evtx",
-                    r"C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\*.evtx",
-                    r"C:\ProgramData\Microsoft\Windows\WER\*.evtx"
+                    r"C:\Windows\Prefetch\*.pf"
                 ],
-                "priority": 9,
-                "description": "Journaux d'événements Windows étendus"
+                "priority": "MEDIUM",
+                "description": "Fichiers Prefetch Windows"
             },
             
-            # Artefacts de navigation ultra-complets
-            "browser_revolution": {
+            # Profils utilisateurs
+            "user_profiles": {
                 "paths": [
-                    # Chrome complet
-                    r"C:\Users\**\AppData\Local\Google\Chrome\User Data\**\*",
-                    r"C:\Users\**\AppData\Local\Chromium\User Data\**\*",
-                    
-                    # Firefox complet  
-                    r"C:\Users\**\AppData\Roaming\Mozilla\Firefox\Profiles\**\*",
-                    r"C:\Users\**\AppData\Local\Mozilla\Firefox\Profiles\**\*",
-                    
-                    # Edge complet
-                    r"C:\Users\**\AppData\Local\Microsoft\Edge\User Data\**\*",
-                    
-                    # Internet Explorer/WebCache
-                    r"C:\Users\**\AppData\Local\Microsoft\Windows\WebCache\*",
-                    r"C:\Users\**\AppData\Local\Microsoft\Windows\INetCache\**\*",
-                    r"C:\Users\**\AppData\Local\Microsoft\Windows\INetCookies\**\*",
-                    r"C:\Users\**\AppData\Roaming\Microsoft\Windows\IECompatCache\*",
-                    
-                    # Opera et autres
-                    r"C:\Users\**\AppData\Roaming\Opera Software\**\*",
-                    r"C:\Users\**\AppData\Local\Vivaldi\**\*",
-                    r"C:\Users\**\AppData\Local\BraveSoftware\**\*"
+                    r"C:\Users\*\NTUSER.DAT",
+                    r"C:\Users\*\NTUSER.DAT.LOG*",
+                    r"C:\Users\*\AppData\Local\Microsoft\Windows\UsrClass.dat*"
                 ],
-                "priority": 8,
-                "description": "Artefacts de navigation révolutionnaires"
+                "priority": "HIGH",
+                "description": "Ruches de registre utilisateurs"
             },
             
-            # Artefacts de persistance avancés
-            "persistence_advanced": {
+            # Navigateurs
+            "browsers": {
                 "paths": [
-                    # Tâches planifiées
-                    r"C:\Windows\Tasks\**\*",
-                    r"C:\Windows\System32\Tasks\**\*",
-                    
-                    # Services
-                    r"C:\Windows\System32\drivers\**\*",
-                    r"C:\Windows\System32\DriverStore\**\*",
-                    
-                    # Démarrage
-                    r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\**\*",
-                    r"C:\Users\**\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\**\*",
-                    
-                    # DLL et injection
-                    r"C:\Windows\System32\**\*.dll",
-                    r"C:\Windows\SysWOW64\**\*.dll",
-                    
-                    # WMI
-                    r"C:\Windows\System32\wbem\Repository\**\*",
-                    
-                    # Prefetch avancé
-                    r"C:\Windows\Prefetch\**\*",
-                    r"C:\Windows\System32\SleepStudy\**\*"
+                    r"C:\Users\*\AppData\Local\Google\Chrome\User Data\Default\History",
+                    r"C:\Users\*\AppData\Local\Google\Chrome\User Data\Default\Cookies",
+                    r"C:\Users\*\AppData\Roaming\Mozilla\Firefox\Profiles\*\places.sqlite",
+                    r"C:\Users\*\AppData\Local\Microsoft\Edge\User Data\Default\History",
+                    r"C:\Users\*\AppData\Local\Microsoft\Windows\WebCache\WebCacheV*.dat"
                 ],
-                "priority": 8,
-                "description": "Mécanismes de persistance avancés"
+                "priority": "MEDIUM",
+                "description": "Artefacts des navigateurs web"
+            },
+            
+            # Fichiers récents
+            "recent_files": {
+                "paths": [
+                    r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Recent\*",
+                    r"C:\Users\*\AppData\Roaming\Microsoft\Office\Recent\*"
+                ],
+                "priority": "MEDIUM",
+                "description": "Fichiers récemment utilisés"
+            },
+            
+            # Tâches planifiées
+            "scheduled_tasks": {
+                "paths": [
+                    r"C:\Windows\System32\Tasks\*",
+                    r"C:\Windows\Tasks\*"
+                ],
+                "priority": "MEDIUM",
+                "description": "Tâches planifiées"
+            },
+            
+            # Artefacts NTFS
+            "ntfs_artifacts": {
+                "paths": [
+                    r"C:\$MFT",
+                    r"C:\$LogFile", 
+                    r"C:\$Volume",
+                    r"C:\$AttrDef",
+                    r"C:\$Bitmap"
+                ],
+                "priority": "HIGH",
+                "description": "Artefacts système de fichiers NTFS"
+            },
+            
+            # Démarrage et persistance
+            "startup_persistence": {
+                "paths": [
+                    r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\*",
+                    r"C:\Users\*\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\*",
+                    r"C:\Windows\System32\drivers\*",
+                    r"C:\Windows\System32\wbem\Repository\*"
+                ],
+                "priority": "MEDIUM",
+                "description": "Mécanismes de démarrage et persistance"
             }
         }
 
-    def _initialize_advanced_patterns(self):
-        """Initialise les patterns de détection avancés."""
-        return {
-            # Extensions forensiques importantes
-            "forensic_extensions": {
-                '.evtx', '.log', '.dat', '.db', '.sqlite', '.pf', '.lnk',
-                '.reg', '.pol', '.xml', '.json', '.ini', '.cfg', '.conf',
-                '.key', '.cer', '.p12', '.pfx', '.jks', '.keystore'
-            },
-            
-            # Patterns de noms de fichiers suspects
-            "suspicious_names": [
-                r'.*tmp.*\.exe$', r'.*temp.*\.exe$', r'.*\d{8,}.*\.exe$',
-                r'.*backup.*', r'.*shadow.*', r'.*copy.*', r'.*dump.*',
-                r'.*keylog.*', r'.*password.*', r'.*credential.*'
-            ]
-        }
-
-    def _optimize_system_performance(self):
-        """Optimise les performances système pour la collecte."""
-        try:
-            if HAS_PSUTIL:
-                # Ajustement de la priorité du processus
-                current_process = psutil.Process()
-                current_process.nice(psutil.HIGH_PRIORITY_CLASS if os.name == 'nt' else -10)
-                
-            self.logger.info("✅ Optimisations système appliquées")
-            
-        except Exception as e:
-            self.logger.warning(f"⚠️ Impossible d'appliquer les optimisations: {e}")
-
     def get_name(self):
         """Retourne le nom du collecteur."""
-        return "RevolutionaryFileSystemCollector"
+        return "FileSystemCollector"
 
     def get_description(self):
         """Retourne la description du collecteur."""
-        return "Collecteur révolutionnaire surpassant KAPE en performance et couverture"
+        return "Collecteur d'artefacts du système de fichiers Windows"
 
     def collect(self, custom_paths=None):
         """
-        Collecte révolutionnaire des artefacts avec IA et optimisations avancées.
+        Collecte les artefacts du système de fichiers.
         
         Args:
             custom_paths (list, optional): Chemins personnalisés à collecter
             
         Returns:
-            dict: Artefacts collectés avec métadonnées enrichies
+            dict: Artefacts collectés avec métadonnées
         """
         self.stats['start_time'] = time.time()
-        self.logger.info("🚀 Démarrage de la collecte révolutionnaire")
+        self.logger.info("Démarrage de la collecte du système de fichiers")
         
         try:
-            # Phase 1: Découverte intelligente des cibles
-            targets = self._intelligent_target_discovery(custom_paths)
-            self.logger.info(f"🎯 {len(targets)} cibles identifiées par l'IA")
+            # Préparation des cibles
+            targets = self._prepare_targets(custom_paths)
+            self.logger.info(f"Traitement de {len(targets)} cibles de collecte")
             
-            # Phase 2: Scan parallèle ultra-optimisé
-            artifacts = self._revolutionary_parallel_scan(targets)
-            self.logger.info(f"⚡ {len(artifacts)} artefacts collectés")
+            # Collecte parallélisée
+            artifacts = self._parallel_collection(targets)
             
-            # Phase 3: Enrichissement des métadonnées
-            enriched_artifacts = self._enrich_artifacts_metadata(artifacts)
-            
-            # Phase 4: Déduplication et optimisation finale
-            final_artifacts = self._final_optimization(enriched_artifacts)
-            
+            # Finalisation
             self.stats['end_time'] = time.time()
-            self._log_performance_summary()
+            self._log_collection_summary()
             
-            return final_artifacts
+            return artifacts
             
         except Exception as e:
-            self.logger.error(f"❌ Erreur critique lors de la collecte: {e}")
+            self.logger.error(f"Erreur lors de la collecte: {e}")
             return {}
 
-    def _intelligent_target_discovery(self, custom_paths=None):
-        """
-        Découverte intelligente des cibles avec IA.
-        
-        Args:
-            custom_paths (list, optional): Chemins personnalisés
-            
-        Returns:
-            list: Liste des cibles optimisées par priorité
-        """
+    def _prepare_targets(self, custom_paths=None):
+        """Prépare la liste des cibles à collecter."""
         targets = []
         
+        # Ajout des cibles personnalisées
         if custom_paths:
             for path in custom_paths:
                 targets.append({
                     'path': path,
-                    'priority': 5,
-                    'source': 'custom',
-                    'description': 'Chemin personnalisé'
+                    'priority': 'CUSTOM',
+                    'source': 'user_defined'
                 })
         
-        # Ajout des cibles de la base de connaissances
-        for category, data in self.forensic_intelligence.items():
+        # Ajout des cibles forensiques standards
+        for category, data in self.forensic_targets.items():
             for path_pattern in data['paths']:
                 targets.append({
                     'path': path_pattern,
@@ -333,95 +255,75 @@ class RevolutionaryFileSystemCollector(BaseCollector):
                     'description': data['description']
                 })
         
-        # Tri par priorité décroissante
-        targets.sort(key=lambda x: x['priority'], reverse=True)
+        # Tri par priorité
+        priority_order = {'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'CUSTOM': 4}
+        targets.sort(key=lambda x: priority_order.get(x['priority'], 0), reverse=True)
         
         return targets
 
-    def _revolutionary_parallel_scan(self, targets):
-        """
-        Scan parallèle révolutionnaire ultra-optimisé.
-        
-        Args:
-            targets (list): Cibles à scanner
-            
-        Returns:
-            dict: Artefacts collectés
-        """
+    def _parallel_collection(self, targets):
+        """Collecte parallélisée des cibles."""
         artifacts = {}
-        processed_targets = 0
         
-        # Configuration du pool de threads optimisé
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            future_to_target = {}
-            
-            for target in targets[:200]:  # Limitation intelligente
-                future = executor.submit(self._scan_target_advanced, target)
-                future_to_target[future] = target
+            # Soumission des tâches
+            future_to_target = {
+                executor.submit(self._process_target, target): target 
+                for target in targets
+            }
             
             # Traitement des résultats
-            for future in as_completed(future_to_target, timeout=3600):
+            for future in as_completed(future_to_target):
                 target = future_to_target[future]
-                processed_targets += 1
                 
                 try:
-                    target_artifacts = future.result(timeout=300)
-                    
+                    target_artifacts = future.result(timeout=300)  # 5min timeout
                     if target_artifacts:
                         artifacts.update(target_artifacts)
-                        self.logger.debug(f"✅ Target {target['source']} complété")
-                    
+                        
                 except Exception as e:
-                    self.logger.warning(f"⚠️ Erreur target {target['source']}: {e}")
-                
-                # Reporting de progression
-                if processed_targets % 10 == 0:
-                    self.logger.info(f"📊 Progression: {processed_targets}/{len(targets)} targets")
+                    self.logger.warning(f"Erreur traitement cible {target['source']}: {e}")
+                    with self.stats_lock:
+                        self.stats['errors'] += 1
         
         return artifacts
 
-    def _scan_target_advanced(self, target):
-        """
-        Scan avancé d'une cible spécifique.
-        
-        Args:
-            target (dict): Informations de la cible
-            
-        Returns:
-            dict: Artefacts trouvés pour cette cible
-        """
+    def _process_target(self, target):
+        """Traite une cible de collecte."""
         target_artifacts = {}
         
         try:
-            # Expansion intelligente du pattern
+            # Expansion du pattern de chemin
             expanded_paths = self._expand_path_pattern(target['path'])
             
             for path in expanded_paths:
-                if path in self.visited_paths:
+                # Éviter les doublons
+                if path in self.processed_paths:
                     continue
                     
-                self.visited_paths.add(path)
+                with self.cache_lock:
+                    self.processed_paths.add(path)
                 
                 if os.path.exists(path):
                     if os.path.isfile(path):
-                        artifact = self._process_file_advanced(path, target)
+                        artifact = self._process_file(path, target)
                         if artifact:
                             target_artifacts[path] = artifact
                             
                     elif os.path.isdir(path):
-                        dir_artifacts = self._process_directory_advanced(path, target)
+                        dir_artifacts = self._process_directory(path, target)
                         target_artifacts.update(dir_artifacts)
             
             with self.stats_lock:
                 self.stats['directories_scanned'] += 1
                 
         except Exception as e:
-            self.logger.debug(f"Erreur scan target {target['path']}: {e}")
+            self.logger.debug(f"Erreur traitement target {target['path']}: {e}")
             
         return target_artifacts
 
     def _expand_path_pattern(self, path_pattern, limit=1000):
-        """Expansion intelligente des patterns de chemins."""
+        """Expansion des patterns de chemins avec wildcards."""
         expanded = []
         
         try:
@@ -430,6 +332,7 @@ class RevolutionaryFileSystemCollector(BaseCollector):
                 base_path = path_pattern.split('**')[0].rstrip('\\/')
                 if os.path.exists(base_path):
                     for root, dirs, files in os.walk(base_path):
+                        # Éviter les répertoires système lourds
                         dirs[:] = [d for d in dirs if not self._should_skip_directory(os.path.join(root, d))]
                         
                         for file in files:
@@ -442,13 +345,15 @@ class RevolutionaryFileSystemCollector(BaseCollector):
                             break
                             
             elif '*' in path_pattern:
+                # Pattern simple
                 try:
                     import glob
-                    expanded = glob.glob(path_pattern, recursive=True)[:limit]
+                    expanded = glob.glob(path_pattern)[:limit]
                 except Exception:
                     expanded = []
                     
             else:
+                # Chemin direct
                 expanded = [path_pattern]
                 
         except Exception as e:
@@ -459,29 +364,34 @@ class RevolutionaryFileSystemCollector(BaseCollector):
     def _should_skip_directory(self, dir_path):
         """Détermine si un répertoire doit être ignoré."""
         skip_patterns = [
-            r'WinSxS', r'DriverStore', r'Assembly',
-            r'Microsoft.NET', r'Windows Defender'
+            'WinSxS', 'DriverStore', 'Assembly', 'Installer',
+            'Microsoft.NET', 'Windows Defender'
         ]
         
-        dir_path_upper = dir_path.upper()
-        return any(pattern.upper() in dir_path_upper for pattern in skip_patterns)
+        dir_name = os.path.basename(dir_path).upper()
+        return any(pattern.upper() in dir_name for pattern in skip_patterns)
 
-    def _process_file_advanced(self, file_path, target):
-        """Traitement avancé d'un fichier."""
+    def _process_file(self, file_path, target):
+        """Traite un fichier individuel."""
         try:
-            if not self._should_collect_file_advanced(file_path):
+            # Vérifications préliminaires
+            if not self._should_collect_file(file_path):
                 return None
             
+            # Métadonnées de base
             file_stat = os.stat(file_path)
-            file_hash = self._get_file_hash_fast(file_path)
             
-            if file_hash in self.hash_cache:
-                with self.stats_lock:
-                    self.stats['deduplication_saves'] += 1
-                return None
+            # Calcul du hash pour déduplication
+            file_hash = self._calculate_file_hash(file_path)
             
-            self.hash_cache[file_hash] = file_path
+            with self.cache_lock:
+                if file_hash in self.file_hashes:
+                    with self.stats_lock:
+                        self.stats['duplicates_found'] += 1
+                    return None
+                self.file_hashes.add(file_hash)
             
+            # Construction de l'artefact
             artifact = {
                 'path': file_path,
                 'size': file_stat.st_size,
@@ -490,9 +400,13 @@ class RevolutionaryFileSystemCollector(BaseCollector):
                 'accessed': file_stat.st_atime,
                 'hash_md5': file_hash,
                 'target_source': target['source'],
-                'target_priority': target['priority'],
-                'collection_time': time.time()
+                'priority': target['priority'],
+                'collection_timestamp': time.time()
             }
+            
+            # Enrichissement conditionnel
+            if file_stat.st_size < 1024 * 1024:  # < 1MB
+                artifact.update(self._get_file_metadata(file_path))
             
             with self.stats_lock:
                 self.stats['files_collected'] += 1
@@ -504,54 +418,97 @@ class RevolutionaryFileSystemCollector(BaseCollector):
             self.logger.debug(f"Erreur traitement fichier {file_path}: {e}")
             return None
 
-    def _should_collect_file_advanced(self, file_path):
+    def _should_collect_file(self, file_path):
         """Détermine si un fichier doit être collecté."""
         try:
+            # Vérification taille
             file_size = os.path.getsize(file_path)
             if file_size > self.max_file_size:
                 return False
             
+            # Vérification taille totale
             if self.stats['bytes_processed'] > self.max_total_size:
                 return False
             
+            # Extensions forensiques importantes
             _, ext = os.path.splitext(file_path.lower())
-            if ext in self.advanced_patterns['forensic_extensions']:
+            forensic_extensions = {
+                '.evtx', '.log', '.dat', '.db', '.sqlite', '.pf', '.lnk',
+                '.reg', '.pol', '.xml', '.json', '.ini', '.cfg'
+            }
+            
+            if ext in forensic_extensions:
                 return True
             
-            filename = os.path.basename(file_path)
-            for pattern in self.advanced_patterns['suspicious_names']:
-                if re.match(pattern, filename, re.IGNORECASE):
-                    return True
-                    
+            # Fichiers système importants
+            filename = os.path.basename(file_path).lower()
+            important_files = {
+                'ntuser.dat', 'usrclass.dat', 'sam', 'security', 
+                'software', 'system', 'default', '$mft', '$logfile'
+            }
+            
+            if any(important in filename for important in important_files):
+                return True
+                
             return True
             
         except Exception:
             return False
 
-    def _get_file_hash_fast(self, file_path):
-        """Calcul rapide du hash MD5 d'un fichier."""
+    def _calculate_file_hash(self, file_path):
+        """Calcule le hash MD5 d'un fichier."""
         try:
             hash_md5 = hashlib.md5()
             with open(file_path, "rb") as f:
-                # Lecture par chunks pour les gros fichiers
-                for chunk in iter(lambda: f.read(4096), b""):
+                for chunk in iter(lambda: f.read(8192), b""):
                     hash_md5.update(chunk)
             return hash_md5.hexdigest()
         except Exception:
-            return "unknown"
+            return "hash_error"
 
-    def _process_directory_advanced(self, dir_path, target):
-        """Traitement avancé d'un répertoire."""
+    def _get_file_metadata(self, file_path):
+        """Récupère les métadonnées étendues d'un fichier."""
+        metadata = {}
+        
+        try:
+            # Propriétaire du fichier (Windows)
+            if HAS_WIN32:
+                try:
+                    sd = win32security.GetFileSecurity(file_path, win32security.OWNER_SECURITY_INFORMATION)
+                    owner_sid = sd.GetSecurityDescriptorOwner()
+                    name, domain, type = win32security.LookupAccountSid("", owner_sid)
+                    metadata['owner'] = f"{domain}\\{name}"
+                except Exception:
+                    metadata['owner'] = "unknown"
+            
+            # Attributs de fichier
+            try:
+                if HAS_WIN32:
+                    attrs = win32api.GetFileAttributes(file_path)
+                    metadata['attributes'] = attrs
+                else:
+                    metadata['attributes'] = 0
+            except Exception:
+                metadata['attributes'] = 0
+                
+        except Exception as e:
+            self.logger.debug(f"Erreur métadonnées {file_path}: {e}")
+            
+        return metadata
+
+    def _process_directory(self, dir_path, target):
+        """Traite un répertoire."""
         dir_artifacts = {}
         
         try:
             for root, dirs, files in os.walk(dir_path):
-                # Optimisation: éviter les répertoires lourds
+                # Optimisation: limiter la profondeur et éviter les répertoires lourds
                 dirs[:] = [d for d in dirs if not self._should_skip_directory(os.path.join(root, d))]
                 
-                for file in files[:100]:  # Limite par répertoire
+                # Limiter le nombre de fichiers par répertoire pour éviter les surcharges
+                for file in files[:100]:
                     full_path = os.path.join(root, file)
-                    artifact = self._process_file_advanced(full_path, target)
+                    artifact = self._process_file(full_path, target)
                     if artifact:
                         dir_artifacts[full_path] = artifact
                         
@@ -560,110 +517,24 @@ class RevolutionaryFileSystemCollector(BaseCollector):
             
         return dir_artifacts
 
-    def _enrich_artifacts_metadata(self, artifacts):
-        """Enrichit les métadonnées des artefacts."""
-        self.logger.info("🔍 Enrichissement des métadonnées...")
-        
-        for path, artifact in artifacts.items():
-            try:
-                # Ajout d'informations forensiques
-                artifact['forensic_category'] = self._categorize_artifact(path)
-                artifact['risk_level'] = self._assess_risk_level(artifact)
-                artifact['evidence_value'] = self._calculate_evidence_value(artifact)
-                
-            except Exception as e:
-                self.logger.debug(f"Erreur enrichissement {path}: {e}")
-                
-        return artifacts
-
-    def _categorize_artifact(self, file_path):
-        """Catégorise un artefact forensique."""
-        path_lower = file_path.lower()
-        
-        if 'ntuser.dat' in path_lower or 'usrclass.dat' in path_lower:
-            return 'Registry'
-        elif '.evtx' in path_lower:
-            return 'EventLogs'
-        elif 'prefetch' in path_lower:
-            return 'Prefetch'
-        elif any(browser in path_lower for browser in ['chrome', 'firefox', 'edge']):
-            return 'Browser'
-        else:
-            return 'General'
-
-    def _assess_risk_level(self, artifact):
-        """Évalue le niveau de risque d'un artefact."""
-        risk_score = 0
-        
-        # Facteurs de risque
-        if artifact['target_priority'] >= 9:
-            risk_score += 3
-        elif artifact['target_priority'] >= 7:
-            risk_score += 2
-        else:
-            risk_score += 1
-            
-        # Récence de modification
-        time_diff = time.time() - artifact['modified']
-        if time_diff < 86400:  # 24h
-            risk_score += 2
-        elif time_diff < 604800:  # 7j
-            risk_score += 1
-            
-        if risk_score >= 5:
-            return 'HIGH'
-        elif risk_score >= 3:
-            return 'MEDIUM'
-        else:
-            return 'LOW'
-
-    def _calculate_evidence_value(self, artifact):
-        """Calcule la valeur probante d'un artefact."""
-        value_score = artifact['target_priority']
-        
-        # Bonus pour certaines catégories
-        category = artifact.get('forensic_category', 'General')
-        category_bonus = {
-            'Registry': 3,
-            'EventLogs': 3,
-            'Prefetch': 2,
-            'Browser': 2,
-            'General': 1
-        }
-        
-        value_score += category_bonus.get(category, 1)
-        
-        return min(value_score, 10)  # Max 10
-
-    def _final_optimization(self, artifacts):
-        """Optimisation finale des artefacts."""
-        self.logger.info("⚡ Optimisation finale...")
-        
-        # Tri par valeur probante
-        sorted_artifacts = dict(sorted(
-            artifacts.items(),
-            key=lambda x: x[1].get('evidence_value', 0),
-            reverse=True
-        ))
-        
-        return sorted_artifacts
-
-    def _log_performance_summary(self):
-        """Affiche un résumé des performances."""
+    def _log_collection_summary(self):
+        """Affiche un résumé de la collecte."""
         duration = self.stats['end_time'] - self.stats['start_time']
         
-        self.logger.info("=" * 60)
-        self.logger.info("📊 RÉSUMÉ DE PERFORMANCE RÉVOLUTIONNAIRE")
-        self.logger.info("=" * 60)
-        self.logger.info(f"⏱️  Durée totale: {duration:.2f} secondes")
-        self.logger.info(f"📁 Répertoires scannés: {self.stats['directories_scanned']}")
-        self.logger.info(f"📄 Fichiers collectés: {self.stats['files_collected']}")
-        self.logger.info(f"💾 Données traitées: {self.stats['bytes_processed'] / (1024*1024):.2f} MB")
-        self.logger.info(f"🔄 Doublons évités: {self.stats['deduplication_saves']}")
-        self.logger.info(f"⚡ Performance: {self.stats['files_collected'] / duration:.2f} fichiers/sec")
-        self.logger.info("=" * 60)
-        self.logger.info("🎯 SURPASSE KAPE EN TOUS POINTS!")
-        self.logger.info("=" * 60)
+        self.logger.info("=" * 50)
+        self.logger.info("RÉSUMÉ DE COLLECTE - SYSTÈME DE FICHIERS")
+        self.logger.info("=" * 50)
+        self.logger.info(f"Durée totale: {duration:.2f} secondes")
+        self.logger.info(f"Répertoires scannés: {self.stats['directories_scanned']}")
+        self.logger.info(f"Fichiers traités: {self.stats['files_processed']}")
+        self.logger.info(f"Fichiers collectés: {self.stats['files_collected']}")
+        self.logger.info(f"Données traitées: {self.stats['bytes_processed'] / (1024*1024):.1f} MB")
+        self.logger.info(f"Doublons évités: {self.stats['duplicates_found']}")
+        self.logger.info(f"Erreurs rencontrées: {self.stats['errors']}")
+        if duration > 0:
+            self.logger.info(f"Performance: {self.stats['files_collected'] / duration:.1f} fichiers/sec")
+        self.logger.info("=" * 50)
+        self.logger.info("Collecte terminée avec succès")
 
-# Alias de compatibilité
-FileSystemCollector = RevolutionaryFileSystemCollector
+# Alias pour compatibilité
+RevolutionaryFileSystemCollector = FileSystemCollector
