@@ -32,28 +32,36 @@ pip install yara-python
 python -c "import yara" >nul 2>&1
 if errorlevel 1 (
     echo [ATTENTION] L'installation standard de YARA a échoué
-    echo Tentative d'installation via conda...
+    echo Tentative d'installation manuelle de la DLL YARA...
     
-    :: Vérifier si conda est installé
-    conda --version >nul 2>&1
+    :: Créer le dossier DLLs s'il n'existe pas
+    if not exist "%LOCALAPPDATA%\Programs\Python\Python312\DLLs" mkdir "%LOCALAPPDATA%\Programs\Python\Python312\DLLs"
+    
+    :: Télécharger la DLL YARA
+    echo Téléchargement de la DLL YARA...
+    powershell -Command "& {Invoke-WebRequest -Uri 'https://github.com/VirusTotal/yara/releases/download/v4.5.4/yara-master-v4.5.4-win64.zip' -OutFile 'yara.zip'}"
+    
+    :: Extraire la DLL
+    echo Extraction de la DLL...
+    powershell -Command "& {Expand-Archive -Path 'yara.zip' -DestinationPath 'yara_temp' -Force}"
+    
+    :: Copier la DLL
+    echo Copie de la DLL...
+    copy /Y "yara_temp\libyara.dll" "%LOCALAPPDATA%\Programs\Python\Python312\DLLs\"
+    
+    :: Nettoyer
+    echo Nettoyage...
+    rmdir /S /Q "yara_temp"
+    del "yara.zip"
+    
+    :: Vérifier à nouveau l'installation
+    python -c "import yara" >nul 2>&1
     if errorlevel 1 (
-        echo [ERREUR] Conda n'est pas installé
-        echo Veuillez installer Miniconda depuis https://docs.conda.io/en/latest/miniconda.html
+        echo [ERREUR] L'installation de YARA a échoué
+        echo Veuillez installer manuellement yara-python
         pause
         exit /b 1
     )
-    
-    :: Installer YARA via conda
-    conda install -y -c conda-forge yara-python
-)
-
-:: Vérifier à nouveau l'installation de YARA
-python -c "import yara" >nul 2>&1
-if errorlevel 1 (
-    echo [ERREUR] L'installation de YARA a échoué
-    echo Veuillez installer manuellement yara-python
-    pause
-    exit /b 1
 )
 
 :: Créer les répertoires nécessaires
