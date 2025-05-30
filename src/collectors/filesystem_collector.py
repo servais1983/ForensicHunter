@@ -165,16 +165,22 @@ class FileSystemCollector(BaseCollector):
         """Retourne la description du collecteur."""
         return "Collecteur d'artefacts du système de fichiers Windows."
 
-    def collect(self):
+    def collect(self, paths=None):
         """
         Collecte les artefacts du système de fichiers.
+        
+        Args:
+            paths (list, optional): Liste des chemins à collecter. Si None, utilise self.paths.
         
         Returns:
             list: Liste des artefacts collectés
         """
         artifacts = []
         
-        for path_pattern in self.paths:
+        # Utilise les chemins fournis en argument ou ceux par défaut
+        paths_to_collect = paths if paths is not None else self.paths
+        
+        for path_pattern in paths_to_collect:
             try:
                 # Gestion des chemins avec wildcards
                 if '*' in path_pattern:
