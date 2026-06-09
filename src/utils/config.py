@@ -102,7 +102,25 @@ class Config:
             else:
                 self.config_data["reporting"]["formats"] = [self.args.format]
     
-    def get(self, section, key=None):
+    @property
+    def output_dir(self):
+        """Convenience accessor for the configured output directory."""
+        return self.config_data.get("general", {}).get("output_dir", "forensichunter_report")
+
+    def get(self, section, key=None, default=None):
+        """
+        Récupère une valeur de configuration.
+        Supports dotted-path notation: get("general.debug") or get("general", "debug").
+        """
+        # Support dotted-path notation (e.g. "logging.siem_enabled")
+        if key is None and "." in str(section):
+            parts = section.split(".", 1)
+            return self.config_data.get(parts[0], {}).get(parts[1], default)
+        if key is None:
+            return self.config_data.get(section, default if default is not None else {})
+        return self.config_data.get(section, {}).get(key, default)
+
+    def _get_compat(self, section, key=None):
         """
         Récupère une valeur de configuration.
         

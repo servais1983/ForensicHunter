@@ -1,67 +1,75 @@
-# Dépendances requises pour ForensicHunter
+# ForensicHunter — core dependencies
+# Install with: pip install -r requirements.txt
 
-# Dépendances principales
+# CLI / output
 click>=8.1.3
 rich>=13.3.5
 tqdm>=4.65.0
+colorama>=0.4.6
+tabulate>=0.9.0
+
+# System info
 psutil>=5.9.5
 
-# YARA - Analyseur de règles avec fallback pour Windows
+# YARA threat detection
 yara-python>=4.3.1
 
-# Alternative YARA pour les environnements problématiques
-# Décommentez si yara-python pose des problèmes :
-# yara-python==4.2.3
+# Windows artefact parsing (Windows only)
+python-registry>=1.3.1; platform_system=="Windows"
+pywin32>=306;           platform_system=="Windows"
+wmi>=1.5.1;             platform_system=="Windows"
+python-magic-bin>=0.4.14; platform_system=="Windows"
+python-magic>=0.4.27;    platform_system!="Windows"
 
-python-registry>=1.3.1
+# Memory forensics
 volatility3>=2.4.1
-pywin32>=306; platform_system == "Windows"
-wmi>=1.5.1; platform_system == "Windows"
+
+# PE / binary analysis
 pefile>=2023.2.7
+pyelftools>=0.29
+capstone>=4.0.2
+
+# Event log parsing
+python-evtx>=0.7.4
+
+# Document / data parsing
 lxml>=4.9.2
 jinja2>=3.1.2
 pandas>=2.0.1
+
+# Visualisation
 matplotlib>=3.7.1
 networkx>=3.1
-python-evtx>=0.7.4
-python-magic-bin>=0.4.14; platform_system == "Windows"
-python-magic>=0.4.27; platform_system != "Windows"
+
+# HTTP / async
 requests>=2.31.0
 aiohttp>=3.8.4
-pillow>=9.5.0
-colorama>=0.4.6
-tabulate>=0.9.0
-pyinstaller>=5.10.1; platform_system == "Windows"
-PyQt5>=5.15.9; platform_system == "Windows"
 
-# Dépendances pour l'analyse de navigateurs
+# Image processing
+pillow>=9.5.0
+
+# Browser history
 browserhistory==0.1.2
-# Alternative: browser-history>=1.1.0
 pycryptodome>=3.18.0
 
-# Dépendances pour l'analyse mémoire
-pymem>=1.12.0
-construct>=2.10.68
-
-# Dépendances pour la détection d'anomalies
+# ML anomaly detection
 scikit-learn>=1.2.2
 scipy>=1.10.1
 
-# Dépendances système Windows supplémentaires
-pywin32-ctypes>=0.2.0; platform_system == "Windows"
+# Memory introspection
+pymem>=1.12.0
+construct>=2.10.68
 
-# Dépendances pour les tests
-pytest>=7.3.1
-pytest-cov>=4.1.0
-
-# Dépendances de développement (optionnelles)
-# Décommentez pour le développement :
-# black>=23.3.0
-# flake8>=6.0.0
-# mypy>=1.3.0
-
-pyelftools>=0.29
-capstone>=4.0.2
-pyqt6>=6.5.0
+# Configuration / env
 pyyaml>=6.0.1
 python-dotenv>=1.0.0
+
+# GUI (Windows only — optional)
+PyQt5>=5.15.9; platform_system=="Windows"
+
+# API server (optional — install requirements-prod.txt for API)
+# fastapi, uvicorn, pydantic, structlog — see requirements-prod.txt
+
+# Testing
+pytest>=7.3.1
+pytest-cov>=4.1.0

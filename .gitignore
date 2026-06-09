@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+venv/
+.venv/
+env/
+.env
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+coverage.xml
+nosetests.xml
+test-results/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ForensicHunter runtime outputs
+forensichunter_report*/
+results/*.html
+*.log
+evidence/
+reports/
+
+# Secrets
+.env
+config/secrets.yaml
+config/local.yaml
+
+# Docker
+.dockerignore
+
+# Type checking
+.mypy_cache/
+.pyright/
+pyrightconfig.json
