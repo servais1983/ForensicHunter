@@ -380,10 +380,121 @@ async def collection_ws(websocket: WebSocket, collection_id: str):
 # ---------------------------------------------------------------------------
 @app.get("/api/metrics", tags=["System"])
 async def get_metrics():
+    """Operational metrics — counts, statuses, uptime."""
+    import platform as _platform
+    try:
+        import psutil as _psutil
+        mem = _psutil.virtual_memory()
+        mem_used_mb  = round(mem.used  / 1024 / 1024, 1)
+        mem_total_mb = round(mem.total / 1024 / 1024, 1)
+        cpu_percent  = _psutil.cpu_percent(interval=0.1)
+    except ImportError:
+        mem_used_mb = mem_total_mb = cpu_percent = None
+
+    status_counts: Dict[str, int] = {}
+    findings_total = 0
+    for info in active_collections.values():
+        s = info.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+        findings_total += len(info.get("findings", []))
+
     return {
-        "active_collections": len(active_collections),
-        "system_uptime_seconds": time.time() - system_start_time,
+        "forensichunter_version": "2.0.0",
+        "environment": _ENV,
+        "uptime_seconds": round(time.time() - system_start_time, 1),
+        "collections": {
+            "total": len(active_collections),
+            "by_status": status_counts,
+        },
+        "findings_total": findings_total,
+        "system": {
+            "python_version": platform.python_version(),
+            "os": _platform.system(),
+            "cpu_percent": cpu_percent,
+            "memory_used_mb": mem_used_mb,
+            "memory_total_mb": mem_total_mb,
+        },
     }
+
+
+# ---------------------------------------------------------------------------
+# Remote analysis
+# ---------------------------------------------------------------------------
+
+class RemoteRequest(BaseModel):
+    host: str
+    artifact_types: List[str] = ["eventlogs", "registry", "process", "network"]
+    output_dir: str = "forensichunter_report"
+
+
+@app.post("/api/remote", tags=["Remote"], dependencies=[Depends(verify_token)])
+async def start_remote_analysis(req: RemoteRequest):
+    """Launch a forensic analysis on a remote host via an agent session."""
+    import uuid as _uuid
+    session_id = str(_uuid.uuid4())
+    try:
+        from src.remote.remote_analyzer import RemoteAnalyzer
+        config = _get_config()
+        ra = RemoteAnalyzer(config)
+        session = ra.create_session({"host": req.host, "output_dir": req.output_dir})
+        sid = session.get("session_id", session_id)
+        ra.deploy_agent(sid, {})
+        artifacts = ra.collect_artifacts(sid, req.artifact_types)
+        analysis  = ra.analyze_artifacts(sid)
+        report    = ra.generate_report(sid, format="html")
+        ra.cleanup_session(sid)
+        return {
+            "session_id": sid,
+            "host": req.host,
+            "status": "completed",
+            "artifact_count": len(artifacts.get("artifacts", [])),
+            "report_path": report.get("report_path"),
+        }
+    except ImportError:
+        raise HTTPException(status_code=501, detail="remote_analyzer module not available")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Cloud analysis
+# ---------------------------------------------------------------------------
+
+class CloudRequest(BaseModel):
+    provider: str  # aws | azure | gcp
+    options: Dict[str, str] = {}
+    output_dir: str = "forensichunter_report"
+
+
+@app.post("/api/cloud", tags=["Cloud"], dependencies=[Depends(verify_token)])
+async def start_cloud_analysis(req: CloudRequest):
+    """Launch a forensic analysis of a cloud provider environment."""
+    if req.provider not in ("aws", "azure", "gcp"):
+        raise HTTPException(status_code=400, detail="provider must be aws, azure, or gcp")
+    try:
+        from src.cloud.cloud_analyzer import CloudAnalyzer
+        config = _get_config()
+        ca = CloudAnalyzer(config)
+        options = {**req.options, "output_dir": req.output_dir}
+        results = ca.analyze(req.provider, options)
+        return {
+            "provider": req.provider,
+            "status": "completed",
+            "artifact_count": len(results.get("artifacts", [])),
+            "results": results,
+        }
+    except ImportError:
+        raise HTTPException(status_code=501, detail="cloud_analyzer module not available")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _get_config():
+    """Return a minimal Config object for API-invoked modules."""
+    class _Cfg:
+        def get(self, key, default=None):
+            return default
+    return _Cfg()
 
 
 # ---------------------------------------------------------------------------

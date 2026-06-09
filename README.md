@@ -30,7 +30,7 @@ ForensicHunter is an open-source forensic platform designed for incident respond
 
 - Artifact collection: event logs, registry hives, file system metadata, browser history, running processes, network connections, USB device history, memory dumps, and user profile data
 - Threat detection: 500+ YARA rules covering APT groups, ransomware, RATs, exploit kits, malicious documents, web shells, packers, and CVE signatures
-- Behavioral analysis: anomaly detection using scikit-learn, memory forensics via Volatility 3, VirusTotal integration
+- Behavioral analysis: two-layer detection — heuristic regex rules (BHV001-BHV008) + IsolationForest anomaly detection via scikit-learn on process and network artifacts; memory forensics via Volatility 3; VirusTotal integration
 - Reporting: self-contained HTML reports with interactive tables, raw JSON output, CSV exports, and chain-of-custody metadata
 - Enterprise API: FastAPI REST interface with WebSocket progress streaming, bearer-token authentication, and Prometheus metrics
 - Disk image support: VMDK, VHD, and raw image analysis
@@ -195,6 +195,14 @@ analysis:
 reporting:
   --format FORMAT       html | json | csv | all  (default: html)
   --no-report           skip report generation
+
+integrations:
+  --siem {splunk,elastic,qradar,sentinel,arcsight}
+                        send findings to a SIEM (requires SIEM_ENDPOINT env var)
+  --blockchain          anchor evidence hashes in the local blockchain ledger
+  --remote HOST         run forensic collection on a remote host via agent
+  --cloud {aws,azure,gcp}
+                        analyze cloud environment artifacts (requires provider credentials)
 ```
 
 ---
@@ -269,7 +277,7 @@ ws.onmessage = (event) => console.log(JSON.parse(event.data));
 | GET | `/api/collections/{id}` | Collection status |
 | DELETE | `/api/collections/{id}` | Cancel a running collection |
 | WS | `/api/ws/collections/{id}` | Real-time progress stream |
-| GET | `/api/metrics` | Operational metrics |
+| GET | `/api/metrics` | Operational metrics (uptime, collection counts, system stats) |
 
 ---
 
